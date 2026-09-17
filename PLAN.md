@@ -1,6 +1,6 @@
 # Job Copilot — Implementation Plan
 
-Status: Phase 2 foundation implemented on 2026-09-17. The local app now has a candidate profile, a persisted job-posting list, filters, score display, remote/needs-review labels, and demo records. Provider collection, matching computation, authentication, and application-tracking code remain unimplemented.
+Status: Phase 3 foundation started on 2026-09-17. The local app now has a candidate profile, a persisted job-posting list, filters, score display, remote/needs-review labels, demo records, and a public Greenhouse import path. Matching computation, authentication, and application-tracking code remain unimplemented.
 
 ## Phase 0 — Repository and architecture baseline
 
@@ -44,7 +44,7 @@ Status: Phase 2 foundation implemented on 2026-09-17. The local app now has a ca
 
 **Tests:** contract fixtures, uniqueness, UTC timestamps, partial failure simulation.
 
-**Current slice:** `V2__job_posting.sql` creates the first provider-neutral table and indexes; `V2` plus `V3__more_demo_jobs.sql` seed fifteen clearly labelled demo records. `GET /api/jobs` exposes them to the Vue review page. The demo records are not live jobs and will be replaced by provider imports.
+**Current slice:** `V2__job_posting.sql` creates the first provider-neutral table and indexes; `V2` plus `V3__more_demo_jobs.sql` seed fifteen clearly labelled demo records. `POST /api/providers/greenhouse/import` now reads a public Greenhouse Job Board, upserts by `source + source_job_id`, stores the existing `canonical_url` from `absolute_url`, and marks imported records `needs_review=true` until matching is implemented. `GET /api/jobs` exposes both demo and imported records to the Vue review page. LinkedIn, BOSS, Gmail, and automated schedules remain unimplemented.
 
 ## Phase 3 — Stable and user-controlled providers
 

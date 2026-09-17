@@ -37,6 +37,9 @@ const jobsError = ref("");
 const profileLoading = ref(true);
 const saving = ref(false);
 const message = ref("");
+const greenhouseBoard = ref("");
+const importing = ref(false);
+const importMessage = ref("");
 const filters = reactive({ search: "", city: "全部城市", source: "全部来源", remoteOnly: false });
 
 const profile = reactive<CandidateProfile>({
@@ -93,6 +96,34 @@ async function loadJobs() {
     jobsError.value = "岗位接口暂时不可用，请确认 Spring Boot 已启动。";
   } finally {
     jobsLoading.value = false;
+  }
+}
+
+async function importGreenhouse() {
+  const board = greenhouseBoard.value.trim();
+  if (!board) {
+    importMessage.value = "请输入 Greenhouse 岗位板 slug 或 URL";
+    return;
+  }
+  importing.value = true;
+  importMessage.value = "正在读取公开岗位…";
+  try {
+    const response = await fetch("http://127.0.0.1:8080/api/providers/greenhouse/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ board }),
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(detail || `HTTP ${response.status}`);
+    }
+    const result: { imported: number; board: string } = await response.json();
+    importMessage.value = `已从 ${result.board} 导入 ${result.imported} 条岗位`;
+    await loadJobs();
+  } catch {
+    importMessage.value = "导入失败，请检查岗位板 slug/URL 和后端网络连接";
+  } finally {
+    importing.value = false;
   }
 }
 
@@ -156,6 +187,20 @@ async function save() {
         <div class="result-summary"><strong>{{ filteredJobs.length }}</strong><span>当前可审阅</span></div>
       </div>
 
+      <section class="import-panel">
+        <div>
+          <h2>导入真实岗位</h2>
+          <p>先支持公开的 Greenhouse 岗位板，不需要账号或密码。</p>
+        </div>
+        <form class="import-form" @submit.prevent="importGreenhouse">
+          <label>岗位板 slug 或 URL
+            <input v-model="greenhouseBoard" aria-label="Greenhouse 岗位板 slug 或 URL" placeholder="例如：company 或 boards.greenhouse.io/company" />
+          </label>
+          <button :disabled="importing" type="submit">{{ importing ? "导入中…" : "导入 Greenhouse" }}</button>
+        </form>
+        <p v-if="importMessage" class="import-message">{{ importMessage }}</p>
+      </section>
+
       <div class="toolbar">
         <input v-model="filters.search" aria-label="搜索岗位" placeholder="搜索职位、公司或技能" />
         <select v-model="filters.city" aria-label="按城市筛选"><option v-for="city in cities" :key="city">{{ city }}</option></select>
@@ -186,12 +231,12 @@ async function save() {
           </div>
           <footer class="job-footer">
             <span>{{ job.employmentType }} · {{ job.experienceLevel }}</span>
-            <a v-if="job.canonicalUrl && job.source !== 'DEMO'" :href="job.canonicalUrl" target="_blank" rel="noreferrer">查看来源 ↗</a>
-            <span v-else class="demo-link">演示记录</span>
+            <a v-if="job.source !== 'DEMO' && job.canonicalUrl" :href="job.canonicalUrl" target="_blank" rel="noopener noreferrer">查看原始职位 ↗</a>
+            <span v-else class="missing-link">暂无原始职位链接</span>
           </footer>
         </article>
       </div>
-      <p class="demo-note">当前岗位为演示数据，用于验证列表、筛选和标记流程；接入 LinkedIn、BOSS、Gmail 后会替换为真实来源。</p>
+      <p class="demo-note">列表同时保留演示岗位和已导入的真实来源；演示岗位仅用于验证列表、筛选和标记流程。</p>
     </section>
 
     <section v-else class="profile-view">

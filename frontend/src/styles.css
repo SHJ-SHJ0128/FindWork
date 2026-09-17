@@ -29,6 +29,14 @@ h1 { margin: 0; font-size: clamp(36px, 5vw, 56px); letter-spacing: -.06em; line-
 .result-summary { min-width: 136px; padding: 13px 15px; border-left: 2px solid #17202a; }
 .result-summary strong { display: block; font-size: 32px; letter-spacing: -.06em; line-height: 1; }
 .result-summary span { color: #66717c; font-size: 12px; }
+.import-panel { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(280px, 1.2fr); gap: 22px; align-items: end; margin-top: 30px; padding: 18px 20px; border: 1px solid #d8d5ce; border-radius: 10px; background: #eceae5; }
+.import-panel h2 { margin: 0 0 5px; font-size: 16px; }
+.import-panel p { margin: 0; color: #69737d; font-size: 12px; line-height: 1.5; }
+.import-form { display: flex; align-items: end; gap: 9px; }
+.import-form label { display: grid; flex: 1; gap: 6px; color: #4f5962; font-size: 11px; font-weight: 700; }
+.import-form button { border: 0; border-radius: 8px; padding: 11px 14px; color: #fff; background: #17202a; white-space: nowrap; }
+.import-form button:disabled { opacity: .55; cursor: wait; }
+.import-message { grid-column: 1 / -1; color: #315b48 !important; }
 
 .toolbar { display: grid; grid-template-columns: minmax(220px, 1.8fr) repeat(2, minmax(140px, .7fr)) auto; align-items: center; gap: 10px; margin: 38px 0 18px; }
 input, select { border: 1px solid #cbc8c1; border-radius: 8px; padding: 11px 12px; color: #17202a; background: #fff; outline: none; }
@@ -55,7 +63,7 @@ h2 { margin: 9px 0 5px; font-size: 21px; letter-spacing: -.035em; }
 .job-footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 13px; border-top: 1px solid #eeece8; color: #8a9095; font-size: 11px; }
 .job-footer a { color: #17202a; font-weight: 700; text-decoration: none; }
 .job-footer a:hover { text-decoration: underline; }
-.demo-link { color: #8a9095; }
+.missing-link { color: #8a9095; }
 .demo-note { margin: 20px 0 0; color: #8a9095; font-size: 11px; }
 .state-panel { padding: 42px 20px; border: 1px dashed #c6c2ba; border-radius: 12px; color: #69737d; text-align: center; }
 .error-state { color: #8c4b43; border-color: #d2a8a2; }
@@ -84,6 +92,9 @@ h2 { margin: 9px 0 5px; font-size: 21px; letter-spacing: -.035em; }
   .toolbar { grid-template-columns: 1fr 1fr; margin-top: 28px; }
   .toolbar input { grid-column: 1 / -1; }
   .remote-filter { grid-column: 1 / -1; }
+  .import-panel { grid-template-columns: 1fr; gap: 14px; }
+  .import-form { align-items: stretch; flex-direction: column; }
+  .import-message { grid-column: auto; }
   .job-card { padding: 18px; }
   .job-card-top { gap: 12px; }
   h2 { font-size: 18px; }
