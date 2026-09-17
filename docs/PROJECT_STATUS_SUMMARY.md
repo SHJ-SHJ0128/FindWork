@@ -232,7 +232,7 @@ DEEPSEEK_API_KEY=<local secret, omitted>
 
 已完成一次最小 SiliconFlow Chat Completions 连通性测试，返回 HTTP 200。
 
-当前 `DeepSeekAiGateway` 已实现；默认不会批量消耗真实 API，需通过手动接口逐条或按上限分析。已实现超时、一次有限重试、严格 JSON/evidence 校验、哈希缓存和失败降级。未执行本轮全量真实岗位分析，以避免未经确认的 API 用量。
+当前 `DeepSeekAiGateway` 已实现；后台分析器首次启动延迟 5 分钟，之后每 5 分钟最多处理 3 条真实 provider 岗位，也可通过手动接口逐条或按上限分析。已实现超时、一次有限重试、严格 JSON/evidence 校验、哈希缓存和失败降级。未执行本轮全量真实岗位分析，以避免未经确认的 API 用量。
 
 ## 6. 明确未完成内容
 
