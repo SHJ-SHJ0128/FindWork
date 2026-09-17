@@ -2,7 +2,7 @@
 
 更新时间：2026-09-18
 当前分支：`codex/increase-demo-jobs`
-当前 PR：[PR #1](https://github.com/SHJ-SHJ0128/FindWork/pull/1)，最新提交 `336206e`
+当前 PR：[PR #1](https://github.com/SHJ-SHJ0128/FindWork/pull/1)，最新提交 `57db364`
 
 ## 1. 项目目标
 
