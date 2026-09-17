@@ -64,20 +64,24 @@ public class JobProviderService {
         String content = stripHtml(item.path("content").asText(""));
         String searchable = (title + " " + location + " " + content).toLowerCase(Locale.ROOT);
         String city = city(location);
-        String country = TARGET_CITIES.contains(city) ? "China" : "Singapore".equals(city) ? "Singapore" : null;
-        String remoteType = searchable.contains("remote") || searchable.contains("work from home")
-                ? "REMOTE" : searchable.contains("hybrid") ? "HYBRID" : location.isBlank() ? "UNKNOWN" : "ONSITE";
-        String titleSearch = title.toLowerCase(Locale.ROOT);
-        String experience = titleSearch.contains("intern") || titleSearch.contains("co-op") ? "实习"
-                : titleSearch.contains("graduate") || titleSearch.contains("entry") || titleSearch.contains("junior") ? "应届/初级" : "待确认";
-        String employment = titleSearch.contains("intern") || titleSearch.contains("co-op") ? "实习"
-                : titleSearch.contains("contract") ? "合同" : "全职";
+        String locationSearch = location.toLowerCase(Locale.ROOT);
+        String country = TARGET_CITIES.contains(city) || locationSearch.contains("china") || location.contains("中国") ? "China"
+                : "Singapore".equals(city) || locationSearch.contains("singapore") || location.contains("新加坡") ? "Singapore" : null;
+        String remoteType = searchable.contains("remote") || searchable.contains("work from home") || searchable.contains("远程")
+                ? "REMOTE" : searchable.contains("hybrid") || searchable.contains("混合办公") ? "HYBRID"
+                : searchable.matches(".*\\b(on[- ]?site|onsite|office)\\b.*") || searchable.contains("现场办公") ? "ONSITE" : "UNKNOWN";
+        String experience = GmailLinkedInService.inferExperienceLevel(searchable);
+        String employment = GmailLinkedInService.inferEmploymentType(searchable);
+        List<String> skills = GmailLinkedInService.extractSkills(searchable);
+        SalaryInfo salary = SalaryInfo.from(item, content);
         Instant postedAt = parseInstant(item.path("updated_at").asText(null));
         return new JobPosting(
                 UUID.randomUUID(), title, item.path("company_name").asText("Greenhouse company"),
                 country, city, remoteType, employment, experience, "GREENHOUSE",
                 item.path("absolute_url").asText(null), content.isBlank() ? "暂无职位描述" : content,
-                List.of(), 0, true, postedAt);
+                GmailLinkedInService.summaryForSkills(skills), skills,
+                salary.min(), salary.max(), salary.currency(), salary.period(), salary.text(), salary.source(),
+                0, true, postedAt);
     }
 
     private String parseBoardSlug(String input) {

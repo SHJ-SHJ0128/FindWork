@@ -22,7 +22,14 @@ type JobPosting = {
   source: string;
   canonicalUrl: string | null;
   description: string;
+  summary?: string | null;
   skills: string[];
+  salaryMin?: number | null;
+  salaryMax?: number | null;
+  salaryCurrency?: string | null;
+  salaryPeriod?: string | null;
+  salaryText?: string | null;
+  salarySource?: string | null;
   score: number;
   needsReview: boolean;
   postedAt: string | null;
@@ -58,15 +65,20 @@ const cityText = ref(profile.allowedCities.join(", "));
 const regionText = ref(profile.preferredRegions.join(", "));
 const skillsText = ref(profile.skills.join(", "));
 
-const cities = computed(() => ["全部城市", ...new Set(jobs.value.map((job) => job.city).filter(Boolean) as string[])]);
+function isAllowedRegion(job: JobPosting) {
+  return job.country === "China" || job.country === "Singapore";
+}
+
+const cities = computed(() => ["全部城市", ...new Set(jobs.value.filter(isAllowedRegion).map((job) => job.city).filter(Boolean) as string[])]);
 const sources = computed(() => ["全部来源", ...new Set(jobs.value.map((job) => job.source))]);
 const filteredJobs = computed(() => jobs.value.filter((job) => {
+  const matchesRegion = isAllowedRegion(job);
   const needle = filters.search.trim().toLowerCase();
   const matchesSearch = !needle || `${job.title} ${job.company} ${job.description} ${job.skills.join(" ")}`.toLowerCase().includes(needle);
   const matchesCity = filters.city === "全部城市" || job.city === filters.city;
   const matchesSource = filters.source === "全部来源" || job.source === filters.source;
   const matchesRemote = !filters.remoteOnly || job.remoteType === "REMOTE";
-  return matchesSearch && matchesCity && matchesSource && matchesRemote;
+  return matchesRegion && matchesSearch && matchesCity && matchesSource && matchesRemote;
 }));
 
 function split(value: string) {
@@ -79,12 +91,34 @@ function cityLabel(job: JobPosting) {
 }
 
 function remoteLabel(remoteType: JobPosting["remoteType"]) {
-  return { ONSITE: "现场办公", HYBRID: "混合办公", REMOTE: "远程", UNKNOWN: "办公方式待确认" }[remoteType];
+  return { ONSITE: "现场办公", HYBRID: "混合办公", REMOTE: "远程", UNKNOWN: "" }[remoteType];
 }
 
-function postedLabel(value: string | null) {
+function formatJobDate(value: string | null) {
   if (!value) return "时间待确认";
   return new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric" }).format(new Date(value));
+}
+
+function compactSalary(value: number) {
+  if (value >= 1_000_000 && value % 1_000_000 === 0) return `${value / 1_000_000}M`;
+  if (value >= 1_000 && value % 1_000 === 0) return `${value / 1_000}K`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
+}
+
+function formatSalary(job: JobPosting) {
+  const raw = job.salaryText?.trim();
+  if (raw) return raw;
+  if (job.salaryMin == null && job.salaryMax == null) return "";
+  const symbol = { USD: "$", SGD: "S$", CNY: "¥", HKD: "HK$", GBP: "£", EUR: "€" }[job.salaryCurrency ?? ""] ?? "";
+  const min = job.salaryMin == null ? "" : `${symbol}${compactSalary(job.salaryMin)}`;
+  const max = job.salaryMax == null ? "" : `${symbol}${compactSalary(job.salaryMax)}`;
+  const amount = min && max ? `${min}-${max}` : min || max;
+  return amount ? `${amount}${job.salaryPeriod ? `/${job.salaryPeriod}` : ""}` : "";
+}
+
+function jobSummary(job: JobPosting) {
+  return job.summary?.trim() || "职位提醒已整理，完整职责请打开原始职位。";
 }
 
 function sourceLabel(source: string) {
@@ -208,7 +242,7 @@ async function save() {
     <header class="topbar">
       <div class="brand"><span class="brand-mark">FW</span><span>FindWork</span></div>
       <nav aria-label="主导航">
-        <button :class="{ active: view === 'jobs' }" type="button" @click="view = 'jobs'">岗位 <span class="nav-count">{{ jobs.length }}</span></button>
+        <button :class="{ active: view === 'jobs' }" type="button" @click="view = 'jobs'">岗位 <span class="nav-count">{{ filteredJobs.length }}</span></button>
         <button :class="{ active: view === 'profile' }" type="button" @click="view = 'profile'">候选人资料</button>
       </nav>
       <span class="system-status"><i></i> 本地运行</span>
@@ -266,16 +300,17 @@ async function save() {
         <article v-for="job in filteredJobs" :key="job.id" class="job-card">
           <div class="job-card-top">
             <div>
-              <div class="source-line"><span class="source-badge">{{ sourceLabel(job.source) }}</span><span>{{ postedLabel(job.postedAt) }}</span></div>
+              <div class="source-line"><span class="source-badge">{{ sourceLabel(job.source) }}</span><span>{{ formatJobDate(job.postedAt) }}</span></div>
               <h2>{{ job.title }}</h2>
               <p class="company">{{ job.company }} <span>·</span> {{ cityLabel(job) }}</p>
             </div>
             <div class="score"><strong>{{ scoreLabel(job) }}</strong><span>{{ scoreCaption(job) }}</span></div>
           </div>
-          <p class="description">{{ job.description }}</p>
+          <p v-if="formatSalary(job)" class="salary">{{ formatSalary(job) }}</p>
+          <p class="description">{{ jobSummary(job) }}</p>
           <div class="tags">
             <span v-for="skill in job.skills" :key="skill" class="tag">{{ skill }}</span>
-            <span class="tag location-tag">{{ remoteLabel(job.remoteType) }}</span>
+            <span v-if="remoteLabel(job.remoteType)" class="tag location-tag">{{ remoteLabel(job.remoteType) }}</span>
             <span v-if="job.needsReview" class="tag review-tag">需审核</span>
           </div>
           <footer class="job-footer">

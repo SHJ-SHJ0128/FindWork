@@ -37,7 +37,7 @@ class GmailLinkedInServiceTest {
             assertThat(job.company()).isEqualTo("招银网络科技有限公司");
             assertThat(job.country()).isEqualTo("China");
             assertThat(job.city()).isEqualTo("杭州");
-            assertThat(job.remoteType()).isEqualTo("ONSITE");
+            assertThat(job.remoteType()).isEqualTo("UNKNOWN");
         });
         assertThat(jobs.get(1)).satisfies(job -> {
             assertThat(job.title()).isEqualTo("Web前端研发工程师-大厂");

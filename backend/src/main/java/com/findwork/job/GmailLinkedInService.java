@@ -231,13 +231,14 @@ public class GmailLinkedInService {
             if (!seen.add(jobId)) continue;
             String url = "https://www.linkedin.com/jobs/view/" + jobId;
             ParsedJob parsed = parseEntry(jobEntry(text, matcher.start()), subject);
-            String description = parsed.description();
+            String description = parsed.summary();
             if (description.length() > 2000) description = description.substring(0, 2000) + "…";
             jobs.add(new JobPosting(
                     UUID.randomUUID(), parsed.title(), parsed.company(), parsed.country(), parsed.city(),
                     parsed.remoteType(), parsed.employmentType(), parsed.experienceLevel(),
-                    "LINKEDIN", url, description,
-                    parsed.skills(), 0, true, receivedAt));
+                    "LINKEDIN", url, description, parsed.summary(), parsed.skills(),
+                    parsed.salary().min(), parsed.salary().max(), parsed.salary().currency(), parsed.salary().period(),
+                    parsed.salary().text(), parsed.salary().source(), 0, true, receivedAt));
         }
         return jobs;
     }
@@ -290,15 +291,13 @@ public class GmailLinkedInService {
         String searchable = (title + " " + value).toLowerCase(Locale.ROOT);
         String remoteType = containsAny(searchable, "remote", "远程", "work from home", "居家") ? "REMOTE"
                 : containsAny(searchable, "hybrid", "混合办公") ? "HYBRID"
-                : city == null ? "UNKNOWN" : "ONSITE";
-        String employmentType = containsAny(searchable, "intern", "internship", "实习") ? "实习" : "全职";
-        String experienceLevel = containsAny(searchable, "intern", "internship", "实习") ? "实习"
-                : containsAny(searchable, "graduate", "entry", "junior", "校招", "校园招聘", "应届") ? "应届/初级" : "待确认";
+                : containsAny(searchable, "on-site", "onsite", "office", "现场办公") ? "ONSITE" : "UNKNOWN";
+        String employmentType = inferEmploymentType(searchable);
+        String experienceLevel = inferExperienceLevel(searchable);
         List<String> skills = extractSkills(searchable);
-        String summary = skills.isEmpty()
-                ? "职位提醒已整理，完整职责请打开原始职位。"
-                : "已识别技能线索：" + String.join("、", skills) + "；完整职责请打开原始职位。";
-        return new ParsedJob(title, company, country, city, remoteType, employmentType, experienceLevel, skills, summary);
+        String summary = summaryForSkills(skills);
+        return new ParsedJob(title, company, country, city, remoteType, employmentType, experienceLevel, skills, summary,
+                SalaryInfo.fromText(value));
     }
 
     private static HeaderParts splitHeader(String header, String subject) {
@@ -391,7 +390,7 @@ public class GmailLinkedInService {
         return false;
     }
 
-    private static List<String> extractSkills(String value) {
+    static List<String> extractSkills(String value) {
         List<String> skills = new ArrayList<>();
         for (String skill : SKILL_KEYWORDS) {
             if (value.contains(skill.toLowerCase(Locale.ROOT)) || value.contains(skill.toLowerCase(Locale.CHINA))) {
@@ -405,6 +404,28 @@ public class GmailLinkedInService {
         addSkillIfPresent(skills, value, "人工智能", "AI Application");
         addSkillIfPresent(skills, value, "大模型", "LLM");
         return skills;
+    }
+
+    static String summaryForSkills(List<String> skills) {
+        return skills == null || skills.isEmpty()
+                ? "职位提醒已整理，完整职责请打开原始职位。"
+                : "已识别技能线索：" + String.join("、", skills) + "；完整职责请打开原始职位。";
+    }
+
+    static String inferEmploymentType(String searchable) {
+        return containsAny(searchable, "intern", "internship", "实习") ? "实习"
+                : containsAny(searchable, "part-time", "part time", "兼职") ? "兼职"
+                : containsAny(searchable, "contract", "合同", "temporary", "临时") ? "合同"
+                : containsAny(searchable, "full-time", "full time", "permanent", "全职") ? "全职"
+                : "待确认";
+    }
+
+    static String inferExperienceLevel(String searchable) {
+        return containsAny(searchable, "intern", "internship", "实习") ? "实习"
+                : containsAny(searchable, "new grad", "new graduate", "graduate", "entry", "junior", "associate", "校招", "校园招聘", "应届", "初级") ? "应届/初级"
+                : containsAny(searchable, "senior", "sr.", " sr ", "lead", "staff", "principal", "architect", "高级", "资深") ? "高级"
+                : containsAny(searchable, "manager", "director", "经理", "总监") ? "管理岗"
+                : "待确认";
     }
 
     private static void addSkillIfPresent(List<String> skills, String value, String keyword, String skill) {
@@ -566,7 +587,8 @@ public class GmailLinkedInService {
             String employmentType,
             String experienceLevel,
             List<String> skills,
-            String description
+            String summary,
+            SalaryInfo salary
     ) {
     }
 

@@ -26,7 +26,8 @@ public class JobPostingRepository {
     public List<JobPosting> findAll() {
         return jdbc.query("""
                 select id, title, company, country, city, remote_type, employment_type,
-                       experience_level, source, canonical_url, description, skills,
+                       experience_level, source, canonical_url, description, summary, skills,
+                       salary_min, salary_max, salary_currency, salary_period, salary_text, salary_source,
                        score, needs_review, posted_at
                 from job_posting
                 order by score desc, posted_at desc nulls last
@@ -39,8 +40,9 @@ public class JobPostingRepository {
                     insert into job_posting (
                         id, title, company, country, city, remote_type, employment_type,
                         experience_level, source, source_job_id, canonical_url, description,
-                        skills, score, needs_review, posted_at
-                    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, cast(? as jsonb), ?, ?, ?)
+                        summary, skills, salary_min, salary_max, salary_currency, salary_period, salary_text,
+                        salary_source, score, needs_review, posted_at
+                    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, cast(? as jsonb), ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     on conflict (source, source_job_id) do update set
                         title = excluded.title,
                         company = excluded.company,
@@ -51,7 +53,14 @@ public class JobPostingRepository {
                         experience_level = excluded.experience_level,
                         canonical_url = excluded.canonical_url,
                         description = excluded.description,
+                        summary = excluded.summary,
                         skills = excluded.skills,
+                        salary_min = excluded.salary_min,
+                        salary_max = excluded.salary_max,
+                        salary_currency = excluded.salary_currency,
+                        salary_period = excluded.salary_period,
+                        salary_text = excluded.salary_text,
+                        salary_source = excluded.salary_source,
                         score = excluded.score,
                         needs_review = excluded.needs_review,
                         posted_at = excluded.posted_at
@@ -59,7 +68,9 @@ public class JobPostingRepository {
                     UUID.nameUUIDFromBytes((job.source() + ":" + sourceJobId).getBytes(StandardCharsets.UTF_8)),
                     job.title(), job.company(), job.country(), job.city(), job.remoteType(),
                     job.employmentType(), job.experienceLevel(), job.source(), sourceJobId,
-                    job.canonicalUrl(), job.description(), mapper.writeValueAsString(job.skills()),
+                    job.canonicalUrl(), job.description(), job.summary(), mapper.writeValueAsString(job.skills()),
+                    job.salaryMin(), job.salaryMax(), job.salaryCurrency(), job.salaryPeriod(), job.salaryText(),
+                    job.salarySource(),
                     job.score(), job.needsReview(), job.postedAt() == null ? null : Timestamp.from(job.postedAt()));
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Job skills cannot be serialized", e);
@@ -80,7 +91,14 @@ public class JobPostingRepository {
                     rs.getString("source"),
                     rs.getString("canonical_url"),
                     rs.getString("description"),
+                    rs.getString("summary"),
                     mapper.readValue(rs.getString("skills"), new TypeReference<>() {}),
+                    rs.getBigDecimal("salary_min"),
+                    rs.getBigDecimal("salary_max"),
+                    rs.getString("salary_currency"),
+                    rs.getString("salary_period"),
+                    rs.getString("salary_text"),
+                    rs.getString("salary_source"),
                     rs.getInt("score"),
                     rs.getBoolean("needs_review"),
                     rs.getTimestamp("posted_at") == null ? null : rs.getTimestamp("posted_at").toInstant()
