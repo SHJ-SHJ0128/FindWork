@@ -73,6 +73,7 @@ public class JobAnalysisService {
             int bounded = Math.min(Math.max(1, limit), maxPending);
             for (JobPosting job : jobs.findAll()) {
                 if (scanned >= bounded) break;
+                if ("DEMO".equals(job.source())) continue;
                 String hash = hash(job.description());
                 String version = ai instanceof DeepSeekAiGateway gateway ? gateway.analysisVersion() : "v1";
                 Optional<JobAiAnalysisRecord> latest = analyses.findLatest(job.id());

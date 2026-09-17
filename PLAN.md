@@ -11,6 +11,7 @@ Status: Phase 7/8 foundation completed on 2026-09-18. The local app has candidat
 - `JobMatchEngine` owns the final score and cannot be overridden by the model. Weights are role 30, skills 25, experience 20, location 15, freshness 10. Unsupported countries and China cities outside the candidate profile are hard-filtered; unknown values remain neutral. `job_match_result` stores component scores, reasons, concerns, profile hash, and algorithm version.
 - Updating candidate preferences re-runs deterministic matching for all current successful analyses. AI failure leaves the job visible and exposes `分析失败`; no random or fabricated score is shown.
 - `GET /api/jobs` supports `page`, `size`, `sort=score|postedAt`, `minScore`, `country`, `city`, and `source`. Manual analysis is available at `/api/ai/jobs/{id}/analyze` and `/api/ai/jobs/analyze-pending?limit=`. The Vue dashboard shows analysis stats, top-five daily recommendations, match reasons/concerns, and per-job analysis actions.
+- The scheduled/batch analyzer processes imported provider records only; `DEMO` fixtures keep their deterministic demo scores and do not consume the AI quota.
 
 The implementation deliberately does not add new providers, auto-apply, login automation, CAPTCHA handling, embeddings, or a queue.
 
