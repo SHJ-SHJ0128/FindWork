@@ -22,8 +22,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,6 +46,22 @@ public class GmailLinkedInService {
             "https?://(?:www\\.)?linkedin\\.com/(?:comm/)?jobs/view/(\\d+)[^\\s\\\"'<>)]*",
             Pattern.CASE_INSENSITIVE);
     private static final Pattern HTML_TAG = Pattern.compile("(?s)<[^>]*>");
+    private static final Pattern HTML_ANCHOR = Pattern.compile(
+            "(?is)<a\\b[^>]*\\bhref\\s*=\\s*[\\\"']([^\\\"']+)[\\\"'][^>]*>(.*?)</a>");
+    private static final String JOB_DELIMITER = "---------------------------------------------------------";
+    private static final Pattern COUNTRY = Pattern.compile("中国|China|新加坡|Singapore", Pattern.CASE_INSENSITIVE);
+    private static final Pattern CITY = Pattern.compile(
+            "重庆|成都|广州|深圳|杭州|上海|北京|南京|武汉|西安|苏州|厦门|天津|Singapore|Shanghai|Beijing|Shenzhen|Guangzhou|Hangzhou|Chengdu|Chongqing",
+            Pattern.CASE_INSENSITIVE);
+    private static final Map<String, String> CITY_LABELS = Map.ofEntries(
+            Map.entry("singapore", "Singapore"), Map.entry("shanghai", "上海"),
+            Map.entry("beijing", "北京"), Map.entry("shenzhen", "深圳"),
+            Map.entry("guangzhou", "广州"), Map.entry("hangzhou", "杭州"),
+            Map.entry("chengdu", "成都"), Map.entry("chongqing", "重庆"));
+    private static final List<String> SKILL_KEYWORDS = List.of(
+            "Spring Boot", "JavaScript", "TypeScript", "Machine Learning", "Kubernetes",
+            "Java", "Python", "SQL", "REST API", "API", "Vue", "React", "LLM", "AI",
+            "Security", "网络安全", "Docker", "Cloud", "C++", "Go", "Linux");
 
     private final RestClient client;
     private final JobPostingRepository repository;
@@ -203,23 +222,209 @@ public class GmailLinkedInService {
 
     static List<JobPosting> parseJobs(String content, String subject, Instant receivedAt) {
         if (content == null || content.isBlank()) return List.of();
+        String text = normalizeEmailText(content);
         List<JobPosting> jobs = new ArrayList<>();
         Set<String> seen = new HashSet<>();
-        Matcher matcher = JOB_URL.matcher(content);
+        Matcher matcher = JOB_URL.matcher(text);
         while (matcher.find()) {
             String jobId = matcher.group(1);
             if (!seen.add(jobId)) continue;
             String url = "https://www.linkedin.com/jobs/view/" + jobId;
-            String title = anchorTitle(content, matcher.start(), matcher.end());
-            if (title.isBlank()) title = subject == null || subject.isBlank() ? "LinkedIn 岗位提醒" : subject;
-            String description = stripHtml(content);
+            ParsedJob parsed = parseEntry(jobEntry(text, matcher.start()), subject);
+            String description = parsed.description();
             if (description.length() > 2000) description = description.substring(0, 2000) + "…";
             jobs.add(new JobPosting(
-                    UUID.randomUUID(), title, "公司待确认", null, null, "UNKNOWN", "全职", "待确认",
-                    "LINKEDIN", url, "来自 Gmail 的 LinkedIn 岗位提醒：" + description,
-                    List.of(), 0, true, receivedAt));
+                    UUID.randomUUID(), parsed.title(), parsed.company(), parsed.country(), parsed.city(),
+                    parsed.remoteType(), parsed.employmentType(), parsed.experienceLevel(),
+                    "LINKEDIN", url, description,
+                    parsed.skills(), 0, true, receivedAt));
         }
         return jobs;
+    }
+
+    private static String jobEntry(String text, int urlStart) {
+        int marker = lastMarker(text, urlStart);
+        if (marker < 0) return cleanEntry(text.substring(Math.max(0, urlStart - 2000), urlStart));
+        int boundary = Math.max(text.lastIndexOf("---------------------------------------------------------", marker),
+                lastMarker(text, marker));
+        String entry = text.substring(Math.max(0, boundary + 1), Math.max(0, marker)).trim();
+        if (entry.contains(JOB_DELIMITER)) {
+            entry = entry.substring(entry.lastIndexOf(JOB_DELIMITER) + JOB_DELIMITER.length()).trim();
+        }
+        return cleanEntry(entry);
+    }
+
+    private static int lastMarker(String text, int before) {
+        int end = Math.max(0, Math.min(before, text.length()));
+        int marker = -1;
+        for (String candidate : List.of("查看职位", "查看工作", "View job", "Apply now")) {
+            marker = Math.max(marker, text.lastIndexOf(candidate, end - 1));
+        }
+        return marker;
+    }
+
+    private static ParsedJob parseEntry(String entry, String subject) {
+        String value = cleanEntry(entry);
+        Matcher countryMatcher = COUNTRY.matcher(value);
+        String country = null;
+        int countryStart = -1;
+        int countryEnd = -1;
+        String countryValue = "";
+        while (countryMatcher.find()) {
+            countryStart = countryMatcher.start();
+            countryEnd = countryMatcher.end();
+            countryValue = countryMatcher.group();
+        }
+        if (countryStart >= 0) {
+            country = normalizeCountry(countryValue);
+        }
+
+        String beforeCountry = countryStart < 0 ? value : value.substring(0, countryStart).trim();
+        String afterCountry = countryStart < 0 ? "" : value.substring(countryEnd).trim();
+        String city = extractCity(afterCountry.isBlank() ? beforeCountry : afterCountry);
+        if (city == null) city = extractCity(beforeCountry);
+        String header = removeTrailingCity(beforeCountry, city);
+        HeaderParts parts = splitHeader(header, subject);
+        String title = parts.title();
+        String company = parts.company();
+        String searchable = (title + " " + value).toLowerCase(Locale.ROOT);
+        String remoteType = containsAny(searchable, "remote", "远程", "work from home", "居家") ? "REMOTE"
+                : containsAny(searchable, "hybrid", "混合办公") ? "HYBRID"
+                : city == null ? "UNKNOWN" : "ONSITE";
+        String employmentType = containsAny(searchable, "intern", "internship", "实习") ? "实习" : "全职";
+        String experienceLevel = containsAny(searchable, "intern", "internship", "实习") ? "实习"
+                : containsAny(searchable, "graduate", "entry", "junior", "校招", "校园招聘", "应届") ? "应届/初级" : "待确认";
+        List<String> skills = extractSkills(searchable);
+        String summary = skills.isEmpty()
+                ? "职位提醒已整理，完整职责请打开原始职位。"
+                : "已识别技能线索：" + String.join("、", skills) + "；完整职责请打开原始职位。";
+        return new ParsedJob(title, company, country, city, remoteType, employmentType, experienceLevel, skills, summary);
+    }
+
+    private static HeaderParts splitHeader(String header, String subject) {
+        String value = header.replaceFirst("^\\s*HuaJian\\s*:\\s*", "").trim();
+        int dash = value.lastIndexOf(" - ");
+        if (dash > 0 && value.substring(dash + 3).contains("&")) {
+            return new HeaderParts(value.substring(0, dash).trim(), value.substring(dash + 3).trim());
+        }
+        String[] words = value.split("\\s+");
+        int companyStart = -1;
+        for (int i = words.length - 1; i >= 1; i--) {
+            if (isCompanyToken(words[i])) {
+                companyStart = i;
+                if (i > 1 && isMultiWordCompanySuffix(words[i]) && isCompanyWord(words[i - 1]) && !isTitleWord(words[i - 1])) companyStart--;
+                break;
+            }
+        }
+        if (companyStart < 0 && words.length == 2 && isTitleWord(words[0]) && !isTitleWord(words[1])) companyStart = 1;
+        if (companyStart < 0 && words.length >= 3) companyStart = words.length - 1;
+        if (companyStart < 1) {
+            String fallbackTitle = value.isBlank()
+                    ? (subject == null || subject.isBlank() ? "LinkedIn 岗位提醒" : subject.trim())
+                    : value;
+            return new HeaderParts(fallbackTitle, "公司待确认");
+        }
+        String title = String.join(" ", Arrays.copyOfRange(words, 0, companyStart)).trim();
+        String company = String.join(" ", Arrays.copyOfRange(words, companyStart, words.length)).trim();
+        if (title.isBlank()) title = subject == null || subject.isBlank() ? "LinkedIn 岗位提醒" : subject.trim();
+        return new HeaderParts(title, company.isBlank() ? "公司待确认" : company);
+    }
+
+    private static boolean isCompanyToken(String token) {
+        String value = token.toLowerCase(Locale.ROOT);
+        return value.matches(".*(公司|科技|集团|股份|有限公司|银行|大学|研究院|学院|医院|证券|基金|保险|医疗器材|technolog(?:y|ies)|solutions|systems|labs?|vacuum|holdings?|inc|llc|ltd|corp|拼多多|nvidia|abbvie|abb|dyna\\.ai|google|amazon|microsoft|apple|meta|百度|京东|腾讯|阿里|华为|思科|高通|英伟达|法国巴黎银行|契约锁|biotech|meshyai|traveloka).*");
+    }
+
+    private static boolean isMultiWordCompanySuffix(String token) {
+        return token.toLowerCase(Locale.ROOT).matches(".*(technolog(?:y|ies)|solutions|systems|labs?|vacuum|holdings?|inc|llc|ltd|corp).*");
+    }
+
+    private static boolean isCompanyWord(String token) {
+        String value = token.replaceAll("[^\\p{L}\\p{N}]", "");
+        return value.length() > 1 && Character.isUpperCase(value.charAt(0));
+    }
+
+    private static boolean isTitleWord(String token) {
+        return token.toLowerCase(Locale.ROOT).matches(".*(engineer|developer|architect|manager|analyst|intern|backend|frontend|software|network|security|工程师|开发|经理|顾问|前端|后端|网络|安全|软件|技术).*");
+    }
+
+    private static String cleanEntry(String value) {
+        String result = value == null ? "" : value.replaceAll("[-]{5,}", " ").trim();
+        int bracket = result.lastIndexOf('】');
+        if (bracket >= 0) result = result.substring(bracket + 1).trim();
+        if (result.contains("订阅") || result.contains("搜索偏好") || result.contains("通知")) {
+            int intro = Math.max(result.lastIndexOf('。'), Math.max(result.lastIndexOf(". "), result.lastIndexOf('！')));
+            if (intro >= 0) result = result.substring(intro + 1).trim();
+        }
+        result = result.replaceFirst("\\s+使用简历和职业档案申请.*$", "")
+                .replaceFirst("\\s+\\d+\\s*位校友.*$", "")
+                .replaceFirst("\\s+该公司正在热招中$", "")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return result;
+    }
+
+    private static String removeTrailingCity(String value, String city) {
+        if (value == null || value.isBlank() || city == null || city.isBlank()) return value;
+        String result = value.trim();
+        String escaped = Pattern.quote(city);
+        result = result.replaceFirst("(?i)\\s+(?:重庆|成都|广州|深圳|杭州|上海|北京|南京|武汉|西安|苏州|厦门|天津|Singapore|Shanghai|Beijing|Shenzhen|Guangzhou|Hangzhou|Chengdu|Chongqing)(?:[-—–][^\\s,]+)?(?:\\s*,\\s*[\\p{L}.-]+)*\\s*,?\\s*$", "");
+        return result.replaceFirst("(?i)(?:\\s*,?\\s*" + escaped + ")+\\s*$", "").trim();
+    }
+
+    private static String extractCity(String value) {
+        if (value == null || value.isBlank()) return null;
+        Matcher matcher = CITY.matcher(value);
+        String found = null;
+        while (matcher.find()) found = matcher.group();
+        if (found == null) return null;
+        String normalized = CITY_LABELS.get(found.toLowerCase(Locale.ROOT));
+        return normalized == null ? found.replaceFirst("市$", "") : normalized;
+    }
+
+    private static String normalizeCountry(String value) {
+        return value.equalsIgnoreCase("新加坡") || value.equalsIgnoreCase("Singapore") ? "Singapore" : "China";
+    }
+
+    private static boolean containsAny(String value, String... candidates) {
+        for (String candidate : candidates) if (value.contains(candidate.toLowerCase(Locale.ROOT))) return true;
+        return false;
+    }
+
+    private static List<String> extractSkills(String value) {
+        List<String> skills = new ArrayList<>();
+        for (String skill : SKILL_KEYWORDS) {
+            if (value.contains(skill.toLowerCase(Locale.ROOT)) || value.contains(skill.toLowerCase(Locale.CHINA))) {
+                skills.add(skill);
+            }
+        }
+        addSkillIfPresent(skills, value, "前端", "Frontend");
+        addSkillIfPresent(skills, value, "后端", "Backend");
+        addSkillIfPresent(skills, value, "网络", "Networking");
+        addSkillIfPresent(skills, value, "安全", "Security");
+        addSkillIfPresent(skills, value, "人工智能", "AI Application");
+        addSkillIfPresent(skills, value, "大模型", "LLM");
+        return skills;
+    }
+
+    private static void addSkillIfPresent(List<String> skills, String value, String keyword, String skill) {
+        if (value.contains(keyword.toLowerCase(Locale.ROOT)) && !skills.contains(skill)) skills.add(skill);
+    }
+
+    private static String normalizeEmailText(String value) {
+        Matcher anchor = HTML_ANCHOR.matcher(value);
+        StringBuffer withLinks = new StringBuffer();
+        while (anchor.find()) {
+            anchor.appendReplacement(withLinks, Matcher.quoteReplacement(anchor.group(2) + " " + anchor.group(1)));
+        }
+        anchor.appendTail(withLinks);
+        return stripHtml(withLinks.toString()
+                        .replaceAll("(?i)<br\\s*/?>", "\\n")
+                        .replaceAll("(?i)</(?:p|div|li|tr|h[1-6])>", "\\n"))
+                .replaceAll("\\r", "\\n")
+                .replaceAll("[ \\t\\f]+", " ")
+                .replaceAll("\\n{2,}", "\\n")
+                .trim();
     }
 
     private String accessToken() {
@@ -308,14 +513,6 @@ public class GmailLinkedInService {
         return "";
     }
 
-    private static String anchorTitle(String content, int start, int end) {
-        int open = content.lastIndexOf("<a", start);
-        int close = content.indexOf("</a>", end);
-        if (open < 0 || close < 0 || close - open > 2000) return "";
-        int textStart = content.indexOf('>', open);
-        return textStart < 0 ? "" : stripHtml(content.substring(textStart + 1, close));
-    }
-
     private static String stripHtml(String value) {
         return HTML_TAG.matcher(value)
                 .replaceAll(" ")
@@ -355,6 +552,22 @@ public class GmailLinkedInService {
 
     private static String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    private record HeaderParts(String title, String company) {
+    }
+
+    private record ParsedJob(
+            String title,
+            String company,
+            String country,
+            String city,
+            String remoteType,
+            String employmentType,
+            String experienceLevel,
+            List<String> skills,
+            String description
+    ) {
     }
 
     private record OAuthState(String value, Instant expiresAt) {

@@ -87,6 +87,18 @@ function postedLabel(value: string | null) {
   return new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric" }).format(new Date(value));
 }
 
+function sourceLabel(source: string) {
+  return { LINKEDIN: "LinkedIn", GREENHOUSE: "Greenhouse", DEMO: "Demo" }[source] ?? source;
+}
+
+function scoreLabel(job: JobPosting) {
+  return job.score > 0 ? String(job.score) : "—";
+}
+
+function scoreCaption(job: JobPosting) {
+  return job.score > 0 ? "匹配分" : "待匹配";
+}
+
 async function loadJobs() {
   jobsLoading.value = true;
   jobsError.value = "";
@@ -254,11 +266,11 @@ async function save() {
         <article v-for="job in filteredJobs" :key="job.id" class="job-card">
           <div class="job-card-top">
             <div>
-              <div class="source-line"><span class="source-badge">{{ job.source }}</span><span>{{ postedLabel(job.postedAt) }}</span></div>
+              <div class="source-line"><span class="source-badge">{{ sourceLabel(job.source) }}</span><span>{{ postedLabel(job.postedAt) }}</span></div>
               <h2>{{ job.title }}</h2>
               <p class="company">{{ job.company }} <span>·</span> {{ cityLabel(job) }}</p>
             </div>
-            <div class="score"><strong>{{ job.score }}</strong><span>匹配分</span></div>
+            <div class="score"><strong>{{ scoreLabel(job) }}</strong><span>{{ scoreCaption(job) }}</span></div>
           </div>
           <p class="description">{{ job.description }}</p>
           <div class="tags">
