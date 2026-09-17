@@ -4,7 +4,7 @@ Status labels: **V1** means selected for the implementation plan; **V1 opt-in** 
 
 | Source | Integration type | Stability / effort / risk | Decision |
 | --- | --- | --- | --- |
-| LinkedIn alert email | Gmail email ingestion | Stable delivery path; medium parser/OAuth work; lower anti-bot exposure than scraping | **V1**, daily |
+| LinkedIn alert email | Gmail email ingestion | Stable delivery path; read-only OAuth and bounded link parser implemented; lower anti-bot exposure than scraping | **V1**, daily |
 | LinkedIn direct | Browser automation or partner API | No general public discovery API; high account/ToS/anti-bot risk; high maintenance | **V1 opt-in**, stop on challenge; no bypass |
 | BOSS Zhipin | Browser automation/third-party scraper or manual URL | No public discovery API found; high anti-bot/ToS risk; China-only relevance | **V1 opt-in**, isolated and user-controlled |
 | JobSpy | Third-party scraper | MIT code, but source rights do not follow the library license; supports multiple boards and proxies; high block/maintenance risk | **V1 opt-in**, never use proxy bypass; not a system dependency |

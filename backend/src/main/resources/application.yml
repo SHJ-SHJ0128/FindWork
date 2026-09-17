@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: optional:file:.env[.properties],optional:file:../.env[.properties]
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5432/job_copilot}
     username: ${SPRING_DATASOURCE_USERNAME:job_copilot}
@@ -8,3 +10,28 @@ spring:
 server:
   address: 127.0.0.1
   port: 8080
+findwork:
+  ai:
+    enabled: ${DEEPSEEK_ENABLED:false}
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com/v1}
+    api-key: ${DEEPSEEK_API_KEY:}
+    model: ${DEEPSEEK_MODEL:deepseek-chat}
+    analysis-version: ${DEEPSEEK_ANALYSIS_VERSION:v1}
+    max-description-chars: ${DEEPSEEK_MAX_DESCRIPTION_CHARS:12000}
+    max-pending-per-run: ${DEEPSEEK_MAX_PENDING_PER_RUN:3}
+    pending-initial-delay-ms: ${DEEPSEEK_PENDING_INITIAL_DELAY_MS:300000}
+    pending-delay-ms: ${DEEPSEEK_PENDING_DELAY_MS:300000}
+  resume:
+    storage-dir: ${FINDWORK_RESUME_STORAGE_DIR:storage/resumes}
+  gmail:
+    enabled: ${PROVIDER_LINKEDIN_ALERTS_ENABLED:true}
+    client-id: ${GMAIL_CLIENT_ID:}
+    client-secret: ${GMAIL_CLIENT_SECRET:}
+    redirect-uri: ${GMAIL_REDIRECT_URI:http://127.0.0.1:8080/api/providers/gmail/callback}
+    refresh-token: ${GMAIL_REFRESH_TOKEN:}
+    access-token: ${GMAIL_ACCESS_TOKEN:}
+    token-file: ${GMAIL_TOKEN_FILE:storage/gmail-refresh-token}
+    linkedin-query: ${GMAIL_LINKEDIN_QUERY:from:(linkedin.com) newer_than:7d}
+    max-results: ${GMAIL_LINKEDIN_MAX_RESULTS:100}
+    sync-cron: ${GMAIL_LINKEDIN_SYNC_CRON:0 0 8 * * *}
+    time-zone: ${GMAIL_TIME_ZONE:Asia/Shanghai}

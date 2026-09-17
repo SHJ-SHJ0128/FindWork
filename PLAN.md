@@ -1,6 +1,31 @@
 # Job Copilot — Implementation Plan
 
-Status: Phase 2 foundation implemented on 2026-09-17. The local app now has a candidate profile, a persisted job-posting list, filters, score display, remote/needs-review labels, and demo records. Provider collection, matching computation, authentication, and application-tracking code remain unimplemented.
+Status: Provider and review foundation completed on 2026-09-18. The local app has candidate preferences, provider-neutral persistence, Greenhouse and Gmail/LinkedIn alert import, salary extraction, city/source/remote filters, and a Vue review dashboard. The approved Resume AI + Job Intelligence sprint is in progress: local resume upload/text extraction plus gated resume and JD analysis endpoints are implemented; job match scoring remains retired.
+
+## Current Sprint — Manual Review Simplification (2026-09-18)
+
+- Provider imports persist normalized `JobPosting` records for direct human review; page loading performs no AI calls.
+- `GET /api/jobs` supports `page`, `size`, `sort=score|postedAt`, `minScore`, `country`, `city`, and `source`. City matching normalizes whitespace/case and a trailing `市` on both API and UI paths.
+- The Vue dashboard shows source/date, title, company/location, salary, summary, skills, workplace/review labels, and the original job link. Match scores and recommendations are removed; JD analysis is an explicit per-card action.
+- Job DeepSeek analysis is available only through an explicit per-card action; the jobs list still performs no AI calls and match scoring is not registered in the running flow. Resume endpoints are available, but external analysis is opt-in and remains disabled by default. V5/V6 tables and legacy match-scoring classes remain only for compatibility with existing local data.
+
+The implementation deliberately does not add new providers, auto-apply, login automation, CAPTCHA handling, embeddings, or a queue.
+
+## Approved next sprint — Resume AI + Job Intelligence (in progress)
+
+The user confirmed this scope on 2026-09-18. Resume upload/extraction and on-demand job analysis are now implemented; Gmail triage remains pending:
+
+- Resume AI supports PDF/DOCX up to 10 MB, keeps local version history with one active resume, and auto-analyzes uploads.
+- Resume suggestions are field-level diffs; nothing is written to the candidate profile until the user confirms it.
+- Full resume files remain local. Only redacted resume text and job descriptions may be sent to the configured SiliconFlow DeepSeek endpoint.
+- Gmail AI processes LinkedIn job-alert mail only. A successfully imported message may be marked read; it must not be archived, deleted, or moved.
+- New jobs are intended to be analyzed automatically; the current safe slice exposes analysis on demand from each job card so an external call is never hidden or triggered by page loading.
+- AI returns Chinese summaries plus structured tags, requirement lists, source evidence, and confidence. Unsupported claims are marked for manual review.
+- AI failure is fail-open for ingestion: retain the job and mark it pending/failed for retry.
+- Store normalized analysis and a content hash, not indefinite full Prompt/Response logs.
+- AI does not produce a numeric match score or change current filtering, sorting, or job counts. Automatic application, login/CAPTCHA handling, and cover-letter generation remain out of scope.
+
+Implementation order: Resume AI → Job AI → Gmail Triage. Resume external analysis remains disabled until `DEEPSEEK_ENABLED=true` is explicitly set in the local environment.
 
 ## Phase 0 — Repository and architecture baseline
 
@@ -26,9 +51,11 @@ Status: Phase 2 foundation implemented on 2026-09-17. The local app now has a ca
 
 **Dependencies:** Phase 0.
 
-**Acceptance:** a user can create/edit a profile and select/delete a local resume; secrets and raw files are excluded from Git.
+**Acceptance:** a user can create/edit a profile, upload a PDF/DOCX resume, keep one active local version, and apply confirmed field-level suggestions; secrets and raw files are excluded from Git.
 
 **Tests:** validation, storage permissions, redaction fixtures, PostgreSQL integration.
+
+**Current slice:** `V8__candidate_resume.sql` adds local resume metadata, extracted text, content-hash deduplication, one-current-version semantics, and versioned analysis records. `POST /api/resumes` validates PDF/DOCX signatures and a 10 MB limit, extracts text with PDFBox/Apache POI, stores the file under ignored `storage/resumes/`, and auto-analyzes only when `DEEPSEEK_ENABLED=true`. `POST /api/resumes/{id}/apply-to-profile` merges only user-selected skills, target roles, and experience fields.
 
 ## Phase 2 — Job ingestion contract and persistence
 
@@ -44,7 +71,7 @@ Status: Phase 2 foundation implemented on 2026-09-17. The local app now has a ca
 
 **Tests:** contract fixtures, uniqueness, UTC timestamps, partial failure simulation.
 
-**Current slice:** `V2__job_posting.sql` creates the first provider-neutral table and indexes, seeds five clearly labelled demo records, and `GET /api/jobs` exposes them to the Vue review page. The demo records are not live jobs and will be replaced by provider imports.
+**Current slice:** `V2__job_posting.sql` and `V3__more_demo_jobs.sql` are historical fixtures; `V7__remove_demo_jobs.sql` removes all `DEMO` records after migration so the running database and fresh databases contain only imported sources. `V4__job_summary_and_salary.sql` adds nullable summary and salary fields without changing existing rows. `POST /api/providers/greenhouse/import` reads a public Greenhouse Job Board and keeps the full JD in `description` while deriving a compact `summary`; `POST /api/providers/gmail/linkedin/import` reads a bounded Gmail query with `gmail.readonly`, splits each LinkedIn job link into the same normalized card record (title, company, country, city, work mode, experience, keyword skills and salary), upserts by `source + source_job_id`, stores the existing `canonical_url`, and marks imported records `needs_review=true` until matching is implemented. The shared frontend card formats dates and salaries once, hides full descriptions, supports client-side city/source/remote/search filters, and only displays China/Singapore records. A local OAuth callback stores the refresh token under ignored `storage/`; the Gmail import is scheduled daily while the app is open and is not exposed as a manual page action. BOSS, direct LinkedIn collection, and weekly provider schedules remain unimplemented.
 
 ## Phase 3 — Stable and user-controlled providers
 
@@ -88,45 +115,47 @@ Status: Phase 2 foundation implemented on 2026-09-17. The local app now has a ca
 
 **Tests:** duplicate matrix, repost cases, cleanup boundary tests.
 
-## Phase 6 — Hard filtering and explainable matching
+## Phase 6 — Hard filtering and explainable review
 
-**Objective:** maximize recall while producing a reviewable deterministic rank.
+**Objective:** maximize recall with user-controlled filters while keeping review decisions human-readable; no numeric match score is part of the approved product.
 
-**Tasks:** configurable role/level/location filters; China/Singapore/city/remote rules; reason codes; weighted score; missing-data neutrality; evidence model; algorithm versioning.
+**Tasks:** configurable role/level/location filters; China/Singapore/city/remote rules; reason codes; missing-data neutrality; evidence model. Any historical score tables/classes remain compatibility-only.
 
 **Expected modules:** `matching`, filter configuration, match persistence.
 
 **Dependencies:** Phase 1, 2, and 5.
 
-**Acceptance:** explicit exclusions are rejected with codes; uncertain jobs survive; score components explain rank; recall-labelled fixtures pass the agreed threshold.
+**Acceptance:** explicit exclusions are rejected with codes; uncertain jobs survive; filter behavior is inspectable; recall-labelled fixtures pass the agreed threshold.
 
-**Tests:** filter matrix, score component tests, property tests for score bounds, labelled offline evaluation.
+**Tests:** filter matrix, compatibility checks for legacy score data, labelled offline evaluation.
 
-## Phase 7 — DeepSeek extraction and explanations
+## Phase 7 — DeepSeek extraction and explanations (partial)
 
-**Objective:** add useful AI without surrendering correctness or privacy.
+**Objective:** add evidence-grounded AI extraction without surrendering correctness or privacy; this phase does not restore numeric matching.
 
-**Tasks:** DeepSeek gateway; redaction; schema-validated extraction; evidence-grounded explanation; content-hash cache; unavailable/timeout fallback.
+**Tasks:** DeepSeek gateway; redaction; schema-validated extraction; evidence-grounded explanation; content-hash cache; unavailable/timeout fallback. Automatic new-job scheduling remains deferred until provider cost and retry behavior are confirmed.
 
 **Expected modules:** `matching/ai`, prompt/schema resources, `.env.example` entries.
 
-**Dependencies:** Phase 6 and the user's DeepSeek API key.
+**Dependencies:** Phase 2–3, the approved privacy boundary, and the user's DeepSeek API key.
 
-**Acceptance:** no PII is sent in fixtures; deterministic score survives API failure; every explanation item has evidence or is omitted.
+**Current slice:** `POST /api/jobs/{id}/analysis` performs one explicit, cached JD analysis and `GET /api/jobs/{id}/analysis` returns the current structured result. The Vue card shows category, required/preferred skills, and up to three responsibilities without a numeric score. API failure is stored as `FAILED` and does not alter the job record or list ordering.
+
+**Acceptance:** no PII is sent in fixtures; job ingestion survives API failure; every explanation item has evidence or is marked for review; filters, sorting, and job counts are unchanged.
 
 **Tests:** redaction tests, JSON schema tests, mocked API failure, cache key tests.
 
 ## Phase 8 — Vue dashboard
 
-**Objective:** let the user review quantity and quality efficiently.
+**Objective:** let the user review quantity and quality efficiently without match-score UI.
 
-**Tasks:** job list/detail; score/evidence/concern panels; source and city/remote filters; collection status; profile/resume settings; needs-review labels.
+**Tasks:** job list/detail; source and city/remote filters; salary/summary display; profile/resume settings; needs-review labels.
 
 **Expected modules:** `frontend` views/components and API client.
 
-**Dependencies:** Phase 1–7.
+**Dependencies:** Phase 1–3 and the approved AI sprint design; AI UI remains optional until implementation is explicitly started.
 
-**Acceptance:** the user can inspect every retained job, open the original URL, and understand why it ranked; no application-tracking UI is included.
+**Acceptance:** the user can inspect every retained job and open the original URL; no application-tracking or match-score UI is included.
 
 **Tests:** component tests, accessibility checks, API contract tests, one end-to-end review flow.
 
