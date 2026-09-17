@@ -28,6 +28,8 @@ public class DeepSeekAiGateway implements AiGateway {
             employmentType=full-time|part-time|contract|internship|unknown;
             workplaceType=remote|hybrid|onsite|unknown; educationLevel=none|high_school|associate|bachelor|master|phd|unknown.
             Evidence values must be exact snippets from the supplied job description.
+            Output this exact shape; arrays must stay JSON arrays and evidence must stay an object:
+            {"jobCategory":null,"requiredSkills":[],"preferredSkills":[],"minimumExperienceYears":null,"maximumExperienceYears":null,"educationLevel":null,"seniorityLevel":null,"graduateFriendly":null,"employmentType":null,"workplaceType":null,"responsibilities":[],"workAuthorizationRequired":null,"visaSponsorship":null,"salary":null,"evidence":{}}
             """;
 
     private final RestClient client;
@@ -91,7 +93,7 @@ public class DeepSeekAiGateway implements AiGateway {
                 if (attempt == 0) continue;
                 throw new AiGatewayException("DeepSeek 响应不可用");
             } catch (IllegalArgumentException e) {
-                throw new AiGatewayException("DeepSeek JSON 不符合约定");
+                throw new AiGatewayException("DeepSeek JSON 不符合约定：" + safeParserMessage(e));
             }
         }
         throw new AiGatewayException("DeepSeek 响应不可用");
@@ -141,6 +143,12 @@ public class DeepSeekAiGateway implements AiGateway {
         } catch (NumberFormatException e) {
             return fallback;
         }
+    }
+
+    private static String safeParserMessage(IllegalArgumentException error) {
+        String message = error.getMessage();
+        if (message == null || message.isBlank()) return "字段校验失败";
+        return message.length() <= 120 ? message : message.substring(0, 120);
     }
 
     static class AiGatewayException extends RuntimeException {

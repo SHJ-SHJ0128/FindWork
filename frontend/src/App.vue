@@ -61,8 +61,6 @@ const message = ref("");
 const greenhouseBoard = ref("");
 const importing = ref(false);
 const importMessage = ref("");
-const gmailSyncing = ref(false);
-const gmailMessage = ref("");
 const analyzingJobId = ref("");
 const analyzeMessage = ref("");
 const filters = reactive({ search: "", city: "全部城市", source: "全部来源", remoteOnly: false });
@@ -85,13 +83,17 @@ function isAllowedRegion(job: JobPosting) {
   return job.country === "China" || job.country === "Singapore";
 }
 
+function normalizeCity(value: string | null) {
+  return (value ?? "").trim().toLowerCase().replace(/市$/, "");
+}
+
 const cities = computed(() => ["全部城市", ...new Set(jobs.value.filter(isAllowedRegion).map((job) => job.city).filter(Boolean) as string[])]);
 const sources = computed(() => ["全部来源", ...new Set(jobs.value.map((job) => job.source))]);
 const filteredJobs = computed(() => jobs.value.filter((job) => {
   const matchesRegion = isAllowedRegion(job);
   const needle = filters.search.trim().toLowerCase();
   const matchesSearch = !needle || `${job.title} ${job.company} ${job.description} ${job.skills.join(" ")}`.toLowerCase().includes(needle);
-  const matchesCity = filters.city === "全部城市" || job.city === filters.city;
+  const matchesCity = filters.city === "全部城市" || normalizeCity(job.city) === normalizeCity(filters.city);
   const matchesSource = filters.source === "全部来源" || job.source === filters.source;
   const matchesRemote = !filters.remoteOnly || job.remoteType === "REMOTE";
   return matchesRegion && matchesSearch && matchesCity && matchesSource && matchesRemote;
@@ -214,29 +216,6 @@ async function importGreenhouse() {
   }
 }
 
-function connectGmail() {
-  window.location.assign("http://127.0.0.1:8080/api/providers/gmail/authorize");
-}
-
-async function syncLinkedInMail() {
-  gmailSyncing.value = true;
-  gmailMessage.value = "正在读取 LinkedIn 邮件…";
-  try {
-    const response = await fetch("http://127.0.0.1:8080/api/providers/gmail/linkedin/import", { method: "POST" });
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(detail || `HTTP ${response.status}`);
-    }
-    const result: { messagesScanned: number; imported: number; failed: number } = await response.json();
-    gmailMessage.value = `已扫描 ${result.messagesScanned} 封邮件，导入 ${result.imported} 个岗位${result.failed ? `，${result.failed} 封读取失败` : ""}`;
-    await loadJobs();
-  } catch {
-    gmailMessage.value = "同步失败，请先连接 Gmail 并确认后端配置正确";
-  } finally {
-    gmailSyncing.value = false;
-  }
-}
-
 async function analyzeJob(job: JobPosting) {
   analyzingJobId.value = job.id;
   analyzeMessage.value = "正在分析…";
@@ -246,7 +225,9 @@ async function analyzeJob(job: JobPosting) {
     const updated = await response.json() as JobPosting;
     const index = jobs.value.findIndex((item) => item.id === job.id);
     if (index >= 0) jobs.value[index] = updated;
-    analyzeMessage.value = "分析完成";
+    analyzeMessage.value = updated.analysisStatus === "SUCCESS"
+      ? "分析完成"
+      : `分析失败${updated.analysisError ? `：${updated.analysisError}` : ""}`;
   } catch {
     analyzeMessage.value = "分析失败，请检查 DeepSeek 配置";
   } finally {
@@ -349,21 +330,9 @@ async function save() {
         <p v-if="importMessage" class="import-message">{{ importMessage }}</p>
       </section>
 
-      <section class="import-panel gmail-panel">
-        <div>
-          <h2>同步 LinkedIn 邮件</h2>
-          <p>通过 Gmail 只读权限解析岗位提醒；后端每天 08:00（本地时区）自动同步。</p>
-        </div>
-        <div class="gmail-actions">
-          <button type="button" class="secondary-button" @click="connectGmail">连接 Gmail</button>
-          <button type="button" :disabled="gmailSyncing" @click="syncLinkedInMail">{{ gmailSyncing ? "同步中…" : "立即同步" }}</button>
-        </div>
-        <p v-if="gmailMessage" class="import-message">{{ gmailMessage }}</p>
-      </section>
-
       <div class="toolbar">
         <input v-model="filters.search" aria-label="搜索岗位" placeholder="搜索职位、公司或技能" />
-        <select v-model="filters.city" aria-label="按城市筛选"><option v-for="city in cities" :key="city">{{ city }}</option></select>
+        <select v-model="filters.city" aria-label="按城市筛选"><option v-for="city in cities" :key="city" :value="city">{{ city }}</option></select>
         <select v-model="filters.source" aria-label="按来源筛选"><option v-for="source in sources" :key="source">{{ source }}</option></select>
         <label class="remote-filter"><input v-model="filters.remoteOnly" type="checkbox" /> 只看远程</label>
       </div>

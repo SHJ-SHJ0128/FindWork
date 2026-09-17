@@ -51,11 +51,6 @@ h1 { margin: 0; font-size: clamp(36px, 5vw, 56px); letter-spacing: -.06em; line-
 .import-form label { display: grid; flex: 1; gap: 6px; color: #4f5962; font-size: 11px; font-weight: 700; }
 .import-form button { border: 0; border-radius: 8px; padding: 11px 14px; color: #fff; background: #17202a; white-space: nowrap; }
 .import-form button:disabled { opacity: .55; cursor: wait; }
-.gmail-panel { margin-top: 12px; }
-.gmail-actions { display: flex; gap: 9px; }
-.gmail-actions button { border: 0; border-radius: 8px; padding: 11px 14px; color: #fff; background: #17202a; white-space: nowrap; }
-.gmail-actions .secondary-button { color: #17202a; background: #fff; border: 1px solid #cbc8c1; }
-.gmail-actions button:disabled { opacity: .55; cursor: wait; }
 .import-message { grid-column: 1 / -1; color: #315b48 !important; }
 
 .toolbar { display: grid; grid-template-columns: minmax(220px, 1.8fr) repeat(2, minmax(140px, .7fr)) auto; align-items: center; gap: 10px; margin: 38px 0 18px; }
@@ -122,7 +117,6 @@ h2 { margin: 9px 0 5px; font-size: 21px; letter-spacing: -.035em; }
   .remote-filter { grid-column: 1 / -1; }
   .import-panel { grid-template-columns: 1fr; gap: 14px; }
   .import-form { align-items: stretch; flex-direction: column; }
-  .gmail-actions { flex-direction: column; }
   .import-message { grid-column: auto; }
   .recommendation-list { grid-template-columns: 1fr 1fr; }
   .recommendation-list button:last-child { display: none; }

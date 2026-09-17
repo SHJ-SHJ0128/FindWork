@@ -3,6 +3,7 @@ package com.findwork.job;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,7 @@ final class SemanticAnalysisParser {
     static JobSemanticAnalysis parse(String content, String description, ObjectMapper mapper) {
         JsonNode root = readJson(content, mapper);
         if (root == null || !root.isObject()) throw new IllegalArgumentException("AI 响应不是 JSON 对象");
+        root = normalizeCommonShapes((ObjectNode) root.deepCopy(), mapper);
         root.fieldNames().forEachRemaining(field -> {
             if (!FIELDS.contains(field)) throw new IllegalArgumentException("AI 响应包含未知字段: " + field);
         });
@@ -49,6 +51,26 @@ final class SemanticAnalysisParser {
                 category, required, preferred, minimum, maximum, education, seniority,
                 nullableBoolean(root, "graduateFriendly"), employment, workplace, responsibilities,
                 nullableBoolean(root, "workAuthorizationRequired"), nullableBoolean(root, "visaSponsorship"), salary, evidence);
+    }
+
+    private static ObjectNode normalizeCommonShapes(ObjectNode root, ObjectMapper mapper) {
+        for (String field : List.of("requiredSkills", "preferredSkills", "responsibilities")) {
+            JsonNode value = root.get(field);
+            if (value != null && value.isTextual()) {
+                var array = mapper.createArrayNode();
+                for (String item : value.asText().split("[,，;；\\n]")) {
+                    if (!item.isBlank()) array.add(item.trim());
+                }
+                root.set(field, array);
+            }
+        }
+        JsonNode evidence = root.get("evidence");
+        if (evidence != null && evidence.isTextual()) {
+            ObjectNode object = mapper.createObjectNode();
+            object.put("text", evidence.asText());
+            root.set("evidence", object);
+        }
+        return root;
     }
 
     private static JsonNode readJson(String content, ObjectMapper mapper) {

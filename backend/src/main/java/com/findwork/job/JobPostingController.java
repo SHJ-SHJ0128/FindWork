@@ -41,12 +41,16 @@ public class JobPostingController {
         Stream<JobPosting> stream = repository.findAll().stream();
         if (minScore != null) stream = stream.filter(job -> job.score() >= minScore);
         if (country != null && !country.isBlank()) stream = stream.filter(job -> country.equals(job.country()));
-        if (city != null && !city.isBlank()) stream = stream.filter(job -> city.equals(job.city()));
+        if (city != null && !city.isBlank()) stream = stream.filter(job -> normalizeCity(city).equals(normalizeCity(job.city())));
         if (source != null && !source.isBlank()) stream = stream.filter(job -> source.equals(job.source()));
         return stream.sorted(comparator)
                 .skip((long) page * size)
                 .limit(size)
                 .map(analysis::view)
                 .toList();
+    }
+
+    private static String normalizeCity(String value) {
+        return value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT).replaceFirst("市$", "");
     }
 }

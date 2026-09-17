@@ -43,4 +43,17 @@ class SemanticAnalysisParserTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("evidence");
     }
+
+    @Test
+    void normalizesCommonModelStringShapes() {
+        JobSemanticAnalysis result = SemanticAnalysisParser.parse("""
+                {"requiredSkills":"Java, Spring Boot, SQL",
+                 "responsibilities":"Build services; review code",
+                 "evidence":"Java Spring Boot SQL service."}
+                """, "Java Spring Boot SQL service.", mapper);
+
+        assertThat(result.requiredSkills()).containsExactly("Java", "Spring Boot", "SQL");
+        assertThat(result.responsibilities()).containsExactly("Build services", "review code");
+        assertThat(result.evidence()).containsEntry("text", "Java Spring Boot SQL service.");
+    }
 }

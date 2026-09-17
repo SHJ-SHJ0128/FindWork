@@ -62,7 +62,7 @@ public class ProviderController {
             return ResponseEntity.badRequest().body("Gmail 授权未完成，请返回 FindWork 重试。 ");
         }
         gmail.exchangeAuthorizationCode(code);
-        return ResponseEntity.ok("Gmail 已连接。可以关闭此页面，回到 FindWork 点击“同步 LinkedIn 邮件”。");
+        return ResponseEntity.ok("Gmail 已连接。可以关闭此页面；LinkedIn 岗位提醒会由后台每天自动同步。");
     }
 
     @PostMapping("/gmail/linkedin/import")
