@@ -2,7 +2,7 @@
 
 ## Status
 
-Architecture/preparation only. The Find Work directory was empty when this document was created. No application implementation is included in this phase.
+Architecture/preparation is complete; Phase 1 implementation is now approved and in progress. The initial implementation remains intentionally limited to the candidate-profile foundation.
 
 ## Product goal
 

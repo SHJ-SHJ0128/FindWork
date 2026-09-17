@@ -1,6 +1,6 @@
 # Job Copilot — Implementation Plan
 
-Status: planning only. Do not start Phase 1 until the user explicitly approves this plan. The plan intentionally covers architecture and preparation before application implementation.
+Status: Phase 1 approved on 2026-09-17. The current implementation is limited to the candidate-profile foundation; provider, matching, authentication, and application-tracking code remain unimplemented.
 
 ## Phase 0 — Repository and architecture baseline
 
