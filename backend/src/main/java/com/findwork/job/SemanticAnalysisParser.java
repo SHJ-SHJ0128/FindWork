@@ -44,8 +44,7 @@ final class SemanticAnalysisParser {
         if (minimum != null && maximum != null && minimum > maximum) throw new IllegalArgumentException("经验年限范围无效");
         JsonNode evidenceNode = root.path("evidence");
         Map<String, Object> evidence = evidenceNode.isObject()
-                ? mapper.convertValue(evidenceNode, new TypeReference<>() {}) : Map.of();
-        validateEvidence(evidenceNode, description);
+                ? sanitizeEvidence(mapper.convertValue(evidenceNode, new TypeReference<>() {}), normalize(description)) : Map.of();
         JsonNode salary = root.path("salary").isObject() ? root.path("salary") : null;
         return new JobSemanticAnalysis(
                 category, required, preferred, minimum, maximum, education, seniority,
@@ -121,24 +120,26 @@ final class SemanticAnalysisParser {
         return value.asBoolean();
     }
 
-    private static void validateEvidence(JsonNode evidence, String description) {
-        if (evidence == null || evidence.isMissingNode() || evidence.isNull()) return;
-        if (!evidence.isObject()) throw new IllegalArgumentException("AI evidence 必须是对象");
-        String source = normalize(description);
-        validateEvidenceNode(evidence, source);
+    private static Map<String, Object> sanitizeEvidence(Map<String, Object> evidence, String normalizedDescription) {
+        java.util.LinkedHashMap<String, Object> sanitized = new java.util.LinkedHashMap<>();
+        evidence.forEach((key, value) -> sanitized.put(key, sanitizeEvidenceValue(value, normalizedDescription)));
+        return java.util.Collections.unmodifiableMap(sanitized);
     }
 
-    private static void validateEvidenceNode(JsonNode node, String normalizedDescription) {
-        if (node.isTextual()) {
-            String evidence = normalize(node.asText());
-            if (!evidence.isBlank() && !normalizedDescription.contains(evidence)) {
-                throw new IllegalArgumentException("AI evidence 不存在于原始 JD");
-            }
-            return;
+    private static Object sanitizeEvidenceValue(Object value, String normalizedDescription) {
+        if (value instanceof String text) {
+            String normalized = normalize(text);
+            return normalized.isBlank() || normalizedDescription.contains(normalized) ? text : "待人工核对";
         }
-        if (node.isContainerNode()) {
-            for (JsonNode child : node) validateEvidenceNode(child, normalizedDescription);
+        if (value instanceof Map<?, ?> map) {
+            java.util.LinkedHashMap<String, Object> sanitized = new java.util.LinkedHashMap<>();
+            map.forEach((key, child) -> sanitized.put(String.valueOf(key), sanitizeEvidenceValue(child, normalizedDescription)));
+            return java.util.Collections.unmodifiableMap(sanitized);
         }
+        if (value instanceof List<?> list) {
+            return list.stream().map(child -> sanitizeEvidenceValue(child, normalizedDescription)).toList();
+        }
+        return value;
     }
 
     private static String normalize(String value) {

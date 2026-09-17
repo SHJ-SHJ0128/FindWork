@@ -79,6 +79,7 @@ postedAt
 - `V2__job_posting.sql`：岗位表、索引和首批演示岗位。
 - `V3__more_demo_jobs.sql`：补充演示岗位，总计 15 条 Demo 记录。
 - `V4__job_summary_and_salary.sql`：新增 nullable `summary` 和薪资字段，不删除旧数据。
+- `V7__remove_demo_jobs.sql`：删除所有 `source=DEMO` 的历史演示岗位，避免新旧数据库继续展示虚构职位。
 
 ### 2.4 Greenhouse 导入
 
@@ -178,28 +179,65 @@ Greenhouse 和 LinkedIn 共用 `SalaryInfo` 解析逻辑：
 3. 保存候选人资料不会触发重新匹配，后端也没有后台 AI 分析任务。
 4. Flyway V5/V6 表、旧分析类和测试暂时保留，作为已有本地数据的兼容遗留；当前运行流程不读写这些结果。
 
+### 2.9 已确认的下一阶段 AI 方案（部分实施）
+
+2026-09-18 已完成产品确认。Resume AI 的本地上传、文字提取和职位 JD 按需整理首个切片已完成；Gmail Triage 尚未实现。后续 Sprint 的边界为：
+
+- 同时支持 LinkedIn Gmail 职位提醒整理、PDF/DOCX 简历解析和新导入职位 JD 分析。
+- 简历上传后自动分析；保留历史版本和一个当前版本；资料变更以字段级差异呈现，用户确认后才写入。
+- 完整简历只保存在本机，发送到硅基流动 DeepSeek 前脱敏；职位描述可以发送。
+- Gmail 只处理 LinkedIn 职位提醒。成功导入后可以标记已读，但不归档、删除或移动；当前代码尚未实现标记已读，仍为只读流程。
+- 新职位自动分析仍是目标；当前通过岗位卡片显式按需分析，输出结构化标签、要求清单、职责、证据片段和状态，且以描述 hash 缓存。
+- AI 失败不阻塞职位导入，标记待分析/失败并允许重试；保存结构化结果和内容哈希，不长期保存完整 Prompt/Response。
+- 不生成数字匹配度分数，不改变现有筛选、排序或岗位数量；自动投递、代登录、验证码和求职信生成不在范围内。
+
+实现顺序确定为：Resume AI → Job AI → Gmail Triage。岗位运行流程不会调用 DeepSeek；Resume AI 外部分析仅在显式打开 `DEEPSEEK_ENABLED` 后执行，默认值仍为 `false`。
+
+### 2.10 Resume AI 首个切片
+
+- `V8__candidate_resume.sql` 新增本地简历元数据、提取文本、SHA-256 去重、单个当前版本和分析记录。
+- `POST /api/resumes` 只接受 PDF/DOCX，校验文件签名和 10MB 上限；PDF 使用 PDFBox，DOCX 使用 Apache POI。
+- 原件保存于被 Git 忽略的 `backend/storage/resumes/`，接口不会返回完整简历正文。
+- 上传后在 AI 开启时自动分析；AI 建议支持技能、目标职位和经验字段的勾选确认，再应用到候选人资料。
+- 扫描型 PDF 或空文本会返回明确的文字提取失败提示，不伪造分析结果。
+
+### 2.11 Job AI 首个切片
+
+- `DeepSeekAiGateway` 已注册为可选网关；默认仍由 `DEEPSEEK_ENABLED=false` 关闭。
+- `GET/POST /api/jobs/{id}/analysis` 提供当前结果和显式触发分析；内容 hash、模型和版本不变时复用成功结果。
+- 岗位卡片显示职位类别、必备/加分技能和最多三项职责；失败显示可重试状态，不写入匹配分，也不改变岗位排序、筛选和数量。
+
 ## 3. 当前 API
 
 ```text
 GET  /api/jobs
+GET  /api/jobs/{id}/analysis
+POST /api/jobs/{id}/analysis
 GET  /api/candidate-profile
 PUT  /api/candidate-profile
 POST /api/providers/greenhouse/import
 GET  /api/providers/gmail/authorize
 GET  /api/providers/gmail/callback
 POST /api/providers/gmail/linkedin/import
+POST /api/resumes
+GET  /api/resumes/current
+GET  /api/resumes/{id}
+POST /api/resumes/{id}/analyze
+POST /api/resumes/{id}/apply-to-profile
+DELETE /api/resumes/{id}
 ```
 
 ## 4. 当前数据与验证结果
 
 最近一次本地验证结果：
 
-- `/api/jobs` 返回 59 条岗位。
-- 页面显示 41 条中国或新加坡岗位。
+- `/api/jobs` 返回 44 条岗位。
+- 页面显示 27 条中国或新加坡岗位（其余真实记录因地区规则隐藏）。
+- 数据库中 `GREENHOUSE=16`、`LINKEDIN=28`、`DEMO=0`。
 - 其他国家/国家不明记录被页面地区过滤隐藏。
 - Greenhouse Airtable 幂等导入成功，导入 16 条。
 - Greenhouse 完整 JD 仍保存，但卡片只显示摘要。
-- 页面不调用 AI，不显示匹配度、推荐分、证据或匹配理由。
+- 页面加载不调用 AI；点击岗位卡片后显示 JD 结构化整理，不显示匹配度或推荐分。
 - `mvn test -q` 通过。
 - `npm run build` 通过。
 - `git diff --check` 通过。
@@ -214,11 +252,14 @@ DEEPSEEK_MODEL=deepseek-ai/DeepSeek-V3.2
 DEEPSEEK_API_KEY=<local secret, omitted>
 ```
 
-此前已完成一次最小 SiliconFlow Chat Completions 连通性测试，返回 HTTP 200；当前产品已停用该调用链，不再向外部 AI 发送岗位内容。历史 `DeepSeekAiGateway`、分析类和 V5/V6 表暂时保留用于本地数据兼容，`DEEPSEEK_ENABLED` 默认值为 `false`。
+此前已完成一次最小 SiliconFlow Chat Completions 连通性测试，返回 HTTP 200。Resume AI 和按需 Job AI 网关已接入，只有显式启用 `DEEPSEEK_ENABLED=true` 才会发送脱敏简历文本或岗位描述，默认值为 `false`。历史匹配类和 V5/V6 表暂时保留用于本地数据兼容。
 
 ## 6. 明确未完成内容
 
 - 更高效的数据库分页/筛选（当前 API 在内存中完成筛选后分页）。
+- Resume AI 的更完整字段模型、证据展示和生产级异步队列。
+- 新职位自动 JD 分析调度（当前为卡片按需触发）和更完整的证据展示。
+- Gmail LinkedIn 邮件去重后的自动标记已读。
 - BOSS 直连采集。
 - LinkedIn 直接网页采集。
 - Lever、Indeed 和其他来源的实际适配器。
@@ -237,12 +278,14 @@ DEEPSEEK_API_KEY=<local secret, omitted>
 - 不保存密码，不代替用户登录，不处理验证码。
 - 不自动申请职位，不提交表单。
 - 外部 AI 接入前必须脱敏，原始简历文件保持本地。
+- 下一阶段允许成功导入 LinkedIn 邮件后标记已读，但当前实现仍保持 Gmail 只读，未执行该写操作。
 
 ## 8. 下一步建议
 
-1. 增加 provider 级限流、运行记录和失败重试队列。
-2. 为更多稳定 ATS 增加适配器，并复用同一 UnifiedJob 流程。
-3. 对人工审阅结果建立离线标注集，后续如需恢复评分再单独评估。
+1. 按已确认顺序实现 Resume AI、Job AI、Gmail Triage，并单独验证隐私、失败回退和证据链。
+2. 增加 provider 级限流、运行记录和失败重试队列。
+3. 为更多稳定 ATS 增加适配器，并复用同一 UnifiedJob 流程。
+4. 对人工审阅结果建立离线标注集；如需恢复评分，必须重新进行产品决策。
 
 ## 9. 本地启动
 
@@ -276,9 +319,10 @@ backend/.../job/JobPostingRepository.java    # PostgreSQL 查询和 upsert
 backend/.../job/JobProviderService.java      # Greenhouse 导入和 normalize
 backend/.../job/GmailLinkedInService.java   # Gmail OAuth、LinkedIn 解析
 backend/.../job/SalaryInfo.java              # 共用薪资解析器
-backend/.../job/DeepSeekAiGateway.java      # 已停用的历史 AI 网关
-backend/.../job/SemanticAnalysisParser.java  # 已停用的历史解析器
-backend/.../job/JobAnalysisService.java      # 已停用的历史分析编排
+backend/.../job/DeepSeekAiGateway.java      # SiliconFlow/DeepSeek JD 网关
+backend/.../job/SemanticAnalysisParser.java  # JD 结构化结果校验
+backend/.../job/JobIntelligenceService.java  # 按需 JD 分析编排（无匹配分）
+backend/.../job/JobIntelligenceController.java # JD 分析 REST 接口
 backend/.../job/JobMatchEngine.java          # 已停用的历史匹配逻辑
 backend/.../job/JobAiAnalysisRepository.java # V5 历史数据兼容
 backend/.../job/JobMatchResultRepository.java # V6 历史数据兼容

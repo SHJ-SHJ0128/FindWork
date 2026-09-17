@@ -39,9 +39,48 @@ LinkedIn 不提供面向普通求职者的公开岗位搜索 API，因此 FindWo
 
 后端每天 08:00（`GMAIL_TIME_ZONE`）同步一次，但应用关闭时不会后台运行。导入时会按每个职位链接拆分邮件条目，整理标题、公司、国家、城市、办公方式、经验层级、技能标签和可识别薪资；无法从邮件确认的字段会保留“待确认”。岗位使用现有 `canonical_url` 保存 LinkedIn 原始职位链接，并标记为“需审核”；不会自动申请。BOSS 保持独立的后续 provider，不会通过 Gmail 伪装接入。
 
-## 匹配度分析状态
+本次已确认的下一阶段方案允许同步成功后将对应 LinkedIn 邮件标记为已读，但不归档、删除或移动；该行为尚未实现，当前版本仍使用 Gmail 只读流程。
 
-匹配度分析和 DeepSeek 自动分析已从当前产品流程移除。岗位列表不会调用 AI、不会显示匹配分/推荐分，也不会在保存候选人资料时重新计算匹配。历史数据库中的 `job_ai_analysis`、`job_match_result` 表和旧测试代码暂时保留，便于兼容已有数据，但当前后端不会读取或写入这些结果；`DEEPSEEK_ENABLED` 默认值已改为 `false`。
+## Resume AI（首个切片已实现）
+
+资料页现在支持上传 PDF/DOCX 简历（单文件最大 10MB）。后端使用 PDFBox/Apache POI 在本机提取文字，按 SHA-256 去重，并把原件保存到被 Git 忽略的 `backend/storage/resumes/`。当前简历和分析结果接口为：
+
+```text
+POST /api/resumes
+GET  /api/resumes/current
+GET  /api/resumes/{id}
+POST /api/resumes/{id}/analyze
+POST /api/resumes/{id}/apply-to-profile
+DELETE /api/resumes/{id}
+```
+
+上传后只有在本地设置 `DEEPSEEK_ENABLED=true` 时才会向硅基流动发送脱敏文本；默认值仍为 `false`，当前本地 `.env` 已显式开启。AI 建议按技能、目标职位和经验字段勾选确认后才写入候选人资料。
+
+## 已确认的下一阶段 AI 方案（部分实施）
+
+下一阶段计划同时支持 LinkedIn 邮件整理、简历解析和新职位 JD 分析；简历上传、本地文字提取和按需 JD 分析已经完成，Gmail Triage 尚未完成：
+
+- 简历支持 PDF/DOCX（单文件不超过 10MB），上传后自动解析；保留历史版本但只有一个当前版本。
+- AI 只提出字段级资料变更，用户确认后才写入；完整简历留在本机，发送前脱敏。
+- 新导入职位自动分析仍是目标；当前先由岗位卡片上的“AI 整理职位”显式触发，历史分析按内容哈希缓存，避免打开列表就产生外部调用。结果包括结构化要求、职责、证据片段和模型状态。
+- AI 失败不阻塞岗位导入，结果保存为待分析/失败状态并可重试。
+- 只保存结构化结果和内容哈希，不长期保存完整 Prompt/Response。
+- 不生成数字匹配度分数，不改变现有筛选、排序和岗位数量。
+
+岗位列表不会调用 DeepSeek；点击岗位卡片的“AI 整理职位”或使用简历分析时，外部调用由 `DEEPSEEK_ENABLED` 控制。自动投递、代登录、验证码和求职信生成不在本 Sprint 内。
+
+历史迁移中的 Demo 岗位已由 `V7__remove_demo_jobs.sql` 清理；当前岗位列表只展示已导入的 Greenhouse 和 LinkedIn 真实来源。
+
+## 职位 JD 分析与匹配度状态
+
+职位匹配度分析仍已从当前产品流程移除：不显示匹配分、推荐分，也不会在保存候选人资料时重新计算匹配。职位 JD 现在支持按卡片显式调用的结构化整理接口：
+
+```text
+GET  /api/jobs/{id}/analysis
+POST /api/jobs/{id}/analysis
+```
+
+分析结果只展示职位类别、必备/加分技能、主要职责和状态，不改变岗位筛选、排序或数量。历史数据库中的 `job_match_result` 表和旧匹配测试代码暂时保留，便于兼容已有数据；`DEEPSEEK_ENABLED` 默认值为 `false`，简历和职位分析都只在显式开启后使用该配置。
 
 ## 启动后端（需要 PostgreSQL）
 

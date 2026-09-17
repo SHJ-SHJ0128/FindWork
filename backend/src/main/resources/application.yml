@@ -21,6 +21,8 @@ findwork:
     max-pending-per-run: ${DEEPSEEK_MAX_PENDING_PER_RUN:3}
     pending-initial-delay-ms: ${DEEPSEEK_PENDING_INITIAL_DELAY_MS:300000}
     pending-delay-ms: ${DEEPSEEK_PENDING_DELAY_MS:300000}
+  resume:
+    storage-dir: ${FINDWORK_RESUME_STORAGE_DIR:storage/resumes}
   gmail:
     enabled: ${PROVIDER_LINKEDIN_ALERTS_ENABLED:true}
     client-id: ${GMAIL_CLIENT_ID:}

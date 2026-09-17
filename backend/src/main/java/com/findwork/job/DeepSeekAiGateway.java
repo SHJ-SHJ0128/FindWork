@@ -8,11 +8,13 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestClientException;
+import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
+@Component
 public class DeepSeekAiGateway implements AiGateway {
     private static final String SYSTEM_PROMPT = """
             You are a job posting semantic analysis engine.
