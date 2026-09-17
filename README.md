@@ -26,7 +26,18 @@ curl -X POST http://127.0.0.1:8080/api/providers/greenhouse/import \
   -d '{"board":"airtable"}'
 ```
 
-岗位卡片会使用 Greenhouse 返回的 `absolute_url` 作为原始职位链接，并在新标签页打开。当前导入记录仅用于人工筛选，LinkedIn、BOSS、Gmail 同步和自动投递尚未接入。
+岗位卡片会使用 Greenhouse 返回的 `absolute_url` 作为原始职位链接，并在新标签页打开。当前导入记录仅用于人工筛选，BOSS 直连和自动投递尚未接入。
+
+## 同步 LinkedIn 岗位提醒
+
+LinkedIn 不提供面向普通求职者的公开岗位搜索 API，因此 FindWork 通过 Gmail API 的 `gmail.readonly` 权限读取 LinkedIn 岗位提醒邮件。首次使用前：
+
+1. 在 Google Cloud 创建 OAuth Client，启用 Gmail API，并将回调地址配置为 `http://127.0.0.1:8080/api/providers/gmail/callback`。
+2. 将 `.env.example` 复制为未跟踪的 `.env`，填写 `GMAIL_CLIENT_ID` 和 `GMAIL_CLIENT_SECRET`。
+3. 启动后端，在页面点击“连接 Gmail”并完成授权；refresh token 只保存到被 Git 忽略的 `storage/gmail-refresh-token`。
+4. 点击“立即同步 LinkedIn 邮件”验证导入。默认只查询最近 7 天的 LinkedIn 邮件，可通过 `GMAIL_LINKEDIN_QUERY` 调整。
+
+后端每天 08:00（`GMAIL_TIME_ZONE`）同步一次，但应用关闭时不会后台运行。导入岗位使用现有 `canonical_url` 保存 LinkedIn 原始职位链接，并标记为“需审核”；不会自动申请。BOSS 保持独立的后续 provider，不会通过 Gmail 伪装接入。
 
 ## 启动后端（需要 PostgreSQL）
 

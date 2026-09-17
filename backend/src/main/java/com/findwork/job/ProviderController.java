@@ -2,23 +2,53 @@ package com.findwork.job;
 
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.net.URI;
 
 @RestController
 @RequestMapping("/api/providers")
 @CrossOrigin(origins = "http://127.0.0.1:5173")
 public class ProviderController {
     private final JobProviderService service;
+    private final GmailLinkedInService gmail;
 
-    public ProviderController(JobProviderService service) {
+    public ProviderController(JobProviderService service, GmailLinkedInService gmail) {
         this.service = service;
+        this.gmail = gmail;
     }
 
     @PostMapping("/greenhouse/import")
     public ProviderImportResult importGreenhouse(@Valid @RequestBody ProviderImportRequest request) {
         return service.importGreenhouse(request.board());
+    }
+
+    @GetMapping("/gmail/authorize")
+    public ResponseEntity<Void> authorizeGmail() {
+        URI location = gmail.beginAuthorization();
+        return ResponseEntity.status(HttpStatus.FOUND).location(location).build();
+    }
+
+    @GetMapping("/gmail/callback")
+    public ResponseEntity<String> gmailCallback(@RequestParam(required = false) String code,
+                                                @RequestParam(required = false) String state,
+                                                @RequestParam(required = false) String error) {
+        if (error != null || !gmail.consumeState(state)) {
+            return ResponseEntity.badRequest().body("Gmail 授权未完成，请返回 FindWork 重试。 ");
+        }
+        gmail.exchangeAuthorizationCode(code);
+        return ResponseEntity.ok("Gmail 已连接。可以关闭此页面，回到 FindWork 点击“同步 LinkedIn 邮件”。");
+    }
+
+    @PostMapping("/gmail/linkedin/import")
+    public GmailImportResult importLinkedInAlerts() {
+        return gmail.importLinkedInAlerts();
     }
 }

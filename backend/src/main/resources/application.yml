@@ -8,3 +8,16 @@ spring:
 server:
   address: 127.0.0.1
   port: 8080
+findwork:
+  gmail:
+    enabled: ${PROVIDER_LINKEDIN_ALERTS_ENABLED:true}
+    client-id: ${GMAIL_CLIENT_ID:}
+    client-secret: ${GMAIL_CLIENT_SECRET:}
+    redirect-uri: ${GMAIL_REDIRECT_URI:http://127.0.0.1:8080/api/providers/gmail/callback}
+    refresh-token: ${GMAIL_REFRESH_TOKEN:}
+    access-token: ${GMAIL_ACCESS_TOKEN:}
+    token-file: ${GMAIL_TOKEN_FILE:storage/gmail-refresh-token}
+    linkedin-query: ${GMAIL_LINKEDIN_QUERY:from:(linkedin.com) newer_than:7d}
+    max-results: ${GMAIL_LINKEDIN_MAX_RESULTS:100}
+    sync-cron: ${GMAIL_LINKEDIN_SYNC_CRON:0 0 8 * * *}
+    time-zone: ${GMAIL_TIME_ZONE:Asia/Shanghai}

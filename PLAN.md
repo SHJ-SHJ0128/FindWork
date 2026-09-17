@@ -1,6 +1,6 @@
 # Job Copilot — Implementation Plan
 
-Status: Phase 3 foundation started on 2026-09-17. The local app now has a candidate profile, a persisted job-posting list, filters, score display, remote/needs-review labels, demo records, and a public Greenhouse import path. Matching computation, authentication, and application-tracking code remain unimplemented.
+Status: Phase 3 foundation started on 2026-09-17. The local app now has a candidate profile, a persisted job-posting list, filters, score display, remote/needs-review labels, demo records, a public Greenhouse import path, and a Gmail read-only LinkedIn alert importer. Matching computation, authentication, and application-tracking code remain unimplemented.
 
 ## Phase 0 — Repository and architecture baseline
 
@@ -44,7 +44,7 @@ Status: Phase 3 foundation started on 2026-09-17. The local app now has a candid
 
 **Tests:** contract fixtures, uniqueness, UTC timestamps, partial failure simulation.
 
-**Current slice:** `V2__job_posting.sql` creates the first provider-neutral table and indexes; `V2` plus `V3__more_demo_jobs.sql` seed fifteen clearly labelled demo records. `POST /api/providers/greenhouse/import` now reads a public Greenhouse Job Board, upserts by `source + source_job_id`, stores the existing `canonical_url` from `absolute_url`, and marks imported records `needs_review=true` until matching is implemented. `GET /api/jobs` exposes both demo and imported records to the Vue review page. LinkedIn, BOSS, Gmail, and automated schedules remain unimplemented.
+**Current slice:** `V2__job_posting.sql` creates the first provider-neutral table and indexes; `V2` plus `V3__more_demo_jobs.sql` seed fifteen clearly labelled demo records. `POST /api/providers/greenhouse/import` reads a public Greenhouse Job Board, while `POST /api/providers/gmail/linkedin/import` reads a bounded Gmail query with `gmail.readonly`, extracts LinkedIn job links, upserts by `source + source_job_id`, stores the existing `canonical_url`, and marks imported records `needs_review=true` until matching is implemented. A local OAuth callback stores the refresh token under ignored `storage/`; the Gmail import is scheduled daily while the app is open. BOSS, direct LinkedIn collection, and weekly provider schedules remain unimplemented.
 
 ## Phase 3 — Stable and user-controlled providers
 

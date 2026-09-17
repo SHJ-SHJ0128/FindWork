@@ -40,6 +40,8 @@ const message = ref("");
 const greenhouseBoard = ref("");
 const importing = ref(false);
 const importMessage = ref("");
+const gmailSyncing = ref(false);
+const gmailMessage = ref("");
 const filters = reactive({ search: "", city: "全部城市", source: "全部来源", remoteOnly: false });
 
 const profile = reactive<CandidateProfile>({
@@ -127,6 +129,29 @@ async function importGreenhouse() {
   }
 }
 
+function connectGmail() {
+  window.location.assign("http://127.0.0.1:8080/api/providers/gmail/authorize");
+}
+
+async function syncLinkedInMail() {
+  gmailSyncing.value = true;
+  gmailMessage.value = "正在读取 LinkedIn 邮件…";
+  try {
+    const response = await fetch("http://127.0.0.1:8080/api/providers/gmail/linkedin/import", { method: "POST" });
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(detail || `HTTP ${response.status}`);
+    }
+    const result: { messagesScanned: number; imported: number; failed: number } = await response.json();
+    gmailMessage.value = `已扫描 ${result.messagesScanned} 封邮件，导入 ${result.imported} 个岗位${result.failed ? `，${result.failed} 封读取失败` : ""}`;
+    await loadJobs();
+  } catch {
+    gmailMessage.value = "同步失败，请先连接 Gmail 并确认后端配置正确";
+  } finally {
+    gmailSyncing.value = false;
+  }
+}
+
 onMounted(async () => {
   await Promise.all([
     loadJobs(),
@@ -199,6 +224,18 @@ async function save() {
           <button :disabled="importing" type="submit">{{ importing ? "导入中…" : "导入 Greenhouse" }}</button>
         </form>
         <p v-if="importMessage" class="import-message">{{ importMessage }}</p>
+      </section>
+
+      <section class="import-panel gmail-panel">
+        <div>
+          <h2>同步 LinkedIn 邮件</h2>
+          <p>通过 Gmail 只读权限解析岗位提醒；后端每天 08:00（本地时区）自动同步。</p>
+        </div>
+        <div class="gmail-actions">
+          <button type="button" class="secondary-button" @click="connectGmail">连接 Gmail</button>
+          <button type="button" :disabled="gmailSyncing" @click="syncLinkedInMail">{{ gmailSyncing ? "同步中…" : "立即同步" }}</button>
+        </div>
+        <p v-if="gmailMessage" class="import-message">{{ gmailMessage }}</p>
       </section>
 
       <div class="toolbar">
