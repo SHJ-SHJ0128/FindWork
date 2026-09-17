@@ -3,6 +3,7 @@ package com.findwork.job;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,7 +32,21 @@ public class ProviderController {
     }
 
     @GetMapping("/gmail/authorize")
-    public ResponseEntity<Void> authorizeGmail() {
+    public ResponseEntity<?> authorizeGmail() {
+        if (!gmail.oauthConfigured()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .contentType(MediaType.TEXT_HTML)
+                    .body("""
+                            <!doctype html><meta charset="utf-8"><title>FindWork Gmail 配置</title>
+                            <style>body{font:16px system-ui;max-width:680px;margin:64px auto;padding:0 24px;color:#17202a}code,pre{background:#f2f0eb;padding:3px 6px;border-radius:4px}pre{padding:14px;overflow:auto}a{color:#315b48}</style>
+                            <h1>需要先配置 Gmail OAuth</h1>
+                            <p>请在 FindWork 根目录的未跟踪 <code>.env</code> 中填写：</p>
+                            <pre>GMAIL_CLIENT_ID=你的Client ID
+                            GMAIL_CLIENT_SECRET=你的Client Secret</pre>
+                            <p>并将回调地址配置为 <code>http://127.0.0.1:8080/api/providers/gmail/callback</code>，然后重启后端。</p>
+                            <p><a href="http://127.0.0.1:5173/">返回 FindWork</a></p>
+                            """);
+        }
         URI location = gmail.beginAuthorization();
         return ResponseEntity.status(HttpStatus.FOUND).location(location).build();
     }
