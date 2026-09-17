@@ -1,6 +1,6 @@
 # Job Copilot — Implementation Plan
 
-Status: Phase 1 approved on 2026-09-17. The current implementation is limited to the candidate-profile foundation; provider, matching, authentication, and application-tracking code remain unimplemented.
+Status: Phase 2 foundation implemented on 2026-09-17. The local app now has a candidate profile, a persisted job-posting list, filters, score display, remote/needs-review labels, and demo records. Provider collection, matching computation, authentication, and application-tracking code remain unimplemented.
 
 ## Phase 0 — Repository and architecture baseline
 
@@ -43,6 +43,8 @@ Status: Phase 1 approved on 2026-09-17. The current implementation is limited to
 **Acceptance:** duplicate provider IDs are idempotent; source occurrences remain traceable; partial run states are queryable.
 
 **Tests:** contract fixtures, uniqueness, UTC timestamps, partial failure simulation.
+
+**Current slice:** `V2__job_posting.sql` creates the first provider-neutral table and indexes, seeds five clearly labelled demo records, and `GET /api/jobs` exposes them to the Vue review page. The demo records are not live jobs and will be replaced by provider imports.
 
 ## Phase 3 — Stable and user-controlled providers
 
