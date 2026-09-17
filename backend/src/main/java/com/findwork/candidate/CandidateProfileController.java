@@ -1,5 +1,6 @@
 package com.findwork.candidate;
 
+import com.findwork.job.JobAnalysisService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,9 +15,11 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 @CrossOrigin(origins = "http://127.0.0.1:5173")
 public class CandidateProfileController {
     private final CandidateProfileRepository repository;
+    private final JobAnalysisService analysis;
 
-    public CandidateProfileController(CandidateProfileRepository repository) {
+    public CandidateProfileController(CandidateProfileRepository repository, JobAnalysisService analysis) {
         this.repository = repository;
+        this.analysis = analysis;
     }
 
     @GetMapping
@@ -27,6 +30,7 @@ public class CandidateProfileController {
     @PutMapping
     public CandidateProfile save(@Valid @RequestBody CandidateProfile profile) {
         repository.save(profile);
+        analysis.rematchAll();
         return profile;
     }
 }

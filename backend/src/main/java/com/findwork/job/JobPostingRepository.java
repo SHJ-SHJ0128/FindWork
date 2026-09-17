@@ -11,6 +11,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -32,6 +33,21 @@ public class JobPostingRepository {
                 from job_posting
                 order by score desc, posted_at desc nulls last
                 """, this::map);
+    }
+
+    public Optional<JobPosting> findById(UUID id) {
+        List<JobPosting> rows = jdbc.query("""
+                select id, title, company, country, city, remote_type, employment_type,
+                       experience_level, source, canonical_url, description, summary, skills,
+                       salary_min, salary_max, salary_currency, salary_period, salary_text, salary_source,
+                       score, needs_review, posted_at
+                from job_posting where id = ?
+                """, this::map, id);
+        return rows.stream().findFirst();
+    }
+
+    public void updateScore(UUID id, int score) {
+        jdbc.update("update job_posting set score = ? where id = ?", score, id);
     }
 
     public void upsert(String sourceJobId, JobPosting job) {

@@ -1,6 +1,6 @@
 # FindWork
 
-FindWork 是本地运行的求职岗位收集与匹配工具。当前已完成候选人资料基础页；后续岗位采集、匹配和 Gmail/DeepSeek 集成按 [PLAN.md](PLAN.md) 分阶段实现。
+FindWork 是本地运行的求职岗位收集、AI 语义整理与确定性匹配工具。岗位由来源适配器统一保存，DeepSeek 只负责结构化理解，最终匹配分由后端规则引擎计算。
 
 ## 本地打开方式
 
@@ -37,7 +37,22 @@ LinkedIn 不提供面向普通求职者的公开岗位搜索 API，因此 FindWo
 3. 启动后端，在页面点击“连接 Gmail”并完成授权；refresh token 只保存到被 Git 忽略的 `storage/gmail-refresh-token`。
 4. 点击“立即同步 LinkedIn 邮件”验证导入。默认只查询最近 7 天的 LinkedIn 邮件，可通过 `GMAIL_LINKEDIN_QUERY` 调整。
 
-后端每天 08:00（`GMAIL_TIME_ZONE`）同步一次，但应用关闭时不会后台运行。导入时会按每个职位链接拆分邮件条目，整理标题、公司、国家、城市、办公方式、经验层级、技能标签和可识别薪资；无法从邮件确认的字段会保留“待确认”，匹配分在匹配模块完成前显示“待匹配”。岗位使用现有 `canonical_url` 保存 LinkedIn 原始职位链接，并标记为“需审核”；不会自动申请。BOSS 保持独立的后续 provider，不会通过 Gmail 伪装接入。
+后端每天 08:00（`GMAIL_TIME_ZONE`）同步一次，但应用关闭时不会后台运行。导入时会按每个职位链接拆分邮件条目，整理标题、公司、国家、城市、办公方式、经验层级、技能标签和可识别薪资；无法从邮件确认的字段会保留“待确认”。岗位使用现有 `canonical_url` 保存 LinkedIn 原始职位链接，并标记为“需审核”；不会自动申请。BOSS 保持独立的后续 provider，不会通过 Gmail 伪装接入。
+
+## AI 语义分析与匹配
+
+后端 `DeepSeekAiGateway` 使用 OpenAI 兼容 Chat Completions 接口，读取根目录 `.env` 中的 `DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL` 和 `DEEPSEEK_API_KEY`。只发送岗位标题、公司、地点和截断后的职位描述；API Key 不写入前端、数据库或日志。响应必须是 JSON，枚举、数组、经验年限和 evidence 均会校验；evidence 文本必须出现在原始 JD 中。
+
+每个岗位的分析缓存写入 `job_ai_analysis`（描述 SHA-256、分析版本、模型、状态和结构化字段），仅在 JD、版本或模型变化时重新分析。匹配结果写入 `job_match_result`，由 Java `JobMatchEngine` 按固定 100 分计算：职位方向 30、技能 25、经验 20、地点 15、时效 10。中国不在允许城市、国家不在 China/Singapore 目标地区的岗位会被硬过滤；未知信息保持中性，不伪造分数。AI 失败只标记该岗位分析失败，岗位仍保留。
+
+手动接口：
+
+```text
+POST /api/ai/jobs/{id}/analyze
+POST /api/ai/jobs/analyze-pending?limit=3
+```
+
+页面“今日推荐”显示已完成分析且通过硬过滤的前 5 个岗位；真实岗位在分析成功前显示“待分析”，失败显示“分析失败”。
 
 ## 启动后端（需要 PostgreSQL）
 

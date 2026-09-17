@@ -1,8 +1,8 @@
 # FindWork 项目现状与已完成工作
 
-更新时间：2026-09-17  
-当前分支：`codex/increase-demo-jobs`  
-当前 PR：[PR #1](https://github.com/SHJ-SHJ0128/FindWork/pull/1)，最新提交 `8a9ffdf`
+更新时间：2026-09-18
+当前分支：`codex/increase-demo-jobs`
+当前 PR：[PR #1](https://github.com/SHJ-SHJ0128/FindWork/pull/1)，本轮更新待提交
 
 ## 1. 项目目标
 
@@ -170,6 +170,25 @@ Greenhouse 和 LinkedIn 共用 `SalaryInfo` 解析逻辑：
 - 只看远程。
 - 岗位数量和当前可审阅数量。
 
+### 2.8 AI 语义分析与确定性匹配
+
+本轮已完成从岗位导入到推荐排序的后端闭环：
+
+1. Provider 先将岗位写入 `job_posting`，AI 失败不会丢弃岗位。
+2. `DeepSeekAiGateway` 仅在后端调用配置的 OpenAI 兼容接口，发送标题、公司、地点和截断后的 JD；Key 不进入代码、前端、数据库或日志。
+3. `SemanticAnalysisParser` 只接受严格 JSON/JSON code fence，拒绝额外文本和未知字段，校验枚举、数组、经验年限、nullable 字段，并要求 evidence 文本出现在原始 JD。
+4. `job_ai_analysis`（Flyway V5）保存描述 SHA-256、分析版本、模型、状态、结构化技能/经验/办公方式/薪资/evidence。相同 JD + 版本 + 模型的成功结果直接命中缓存。
+5. `JobMatchEngine` 在 Java 中按 30/25/20/15/10 五项固定权重计算 0–100 分；模型不能覆盖结果。国家不在 China/Singapore 或中国城市不在候选人允许列表时硬过滤，未知信息保持中性。
+6. `job_match_result`（Flyway V6）保存组件分、匹配技能、缺失技能、正向理由、风险、硬过滤原因、候选人资料 hash 和算法版本。资料更新后会重新计算已有成功分析。
+7. 前端“今日推荐”展示前 5 个已分析且通过硬过滤的岗位；卡片显示匹配理由/顾虑。未分析显示待分析，失败显示分析失败，不显示伪造分数。
+
+手动接口：
+
+```text
+POST /api/ai/jobs/{id}/analyze
+POST /api/ai/jobs/analyze-pending?limit=3
+```
+
 ## 3. 当前 API
 
 ```text
@@ -180,6 +199,8 @@ POST /api/providers/greenhouse/import
 GET  /api/providers/gmail/authorize
 GET  /api/providers/gmail/callback
 POST /api/providers/gmail/linkedin/import
+POST /api/ai/jobs/{id}/analyze
+POST /api/ai/jobs/analyze-pending?limit=3
 ```
 
 ## 4. 当前数据与验证结果
@@ -194,6 +215,8 @@ POST /api/providers/gmail/linkedin/import
 - `mvn test -q` 通过。
 - `npm run build` 通过。
 - `git diff --check` 通过。
+- `mvn test -q` 通过，包含语义 JSON/evidence 校验和匹配引擎硬过滤测试。
+- `npm run build` 通过。
 
 ## 5. DeepSeek / 硅基流动配置状态
 
@@ -207,19 +230,12 @@ DEEPSEEK_API_KEY=<local secret, omitted>
 
 已完成一次最小 SiliconFlow Chat Completions 连通性测试，返回 HTTP 200。
 
-但是，FindWork 当前尚未实现真正的 DeepSeek `AiGateway`，因此现阶段岗位整理使用本地确定性规则，不会自动调用 DeepSeek。后续接入必须包括：
-
-- 简历和职位文本脱敏。
-- 最小必要文本发送。
-- 超时、不可用和限流处理。
-- JSON/Schema 校验。
-- 证据绑定。
-- 不允许模型覆盖硬过滤或凭空生成资格判断。
+当前 `DeepSeekAiGateway` 已实现；默认不会批量消耗真实 API，需通过手动接口逐条或按上限分析。已实现超时、一次有限重试、严格 JSON/evidence 校验、哈希缓存和失败降级。未执行本轮全量真实岗位分析，以避免未经确认的 API 用量。
 
 ## 6. 明确未完成内容
 
-- DeepSeek 岗位语义抽取、匹配解释和证据面板。
-- 确定性匹配算法和真实岗位评分；当前真实岗位分数为 0/待匹配。
+- DeepSeek 分析的批量运营监控、失败重试队列和历史版本清理。
+- 更高效的数据库分页/筛选（当前 API 在内存中完成筛选后分页）。
 - BOSS 直连采集。
 - LinkedIn 直接网页采集。
 - Lever、Indeed 和其他来源的实际适配器。
@@ -239,7 +255,14 @@ DEEPSEEK_API_KEY=<local secret, omitted>
 - 不自动申请职位，不提交表单。
 - 外部 AI 接入前必须脱敏，原始简历文件保持本地。
 
-## 8. 本地启动
+## 8. 下一步建议
+
+1. 在本地确认候选人资料后，用“分析待处理”小批量验证真实岗位结果。
+2. 增加 provider 级限流、运行记录和失败重试队列。
+3. 为更多稳定 ATS 增加适配器，并复用同一 UnifiedJob/AI/Match 流程。
+4. 对人工审阅结果建立离线标注集，校准权重但不让模型直接改分。
+
+## 9. 本地启动
 
 先启动 Docker Desktop，然后：
 
@@ -261,7 +284,7 @@ npm run dev
 
 打开：<http://127.0.0.1:5173/>
 
-## 9. 关键代码位置
+## 10. 关键代码位置
 
 ```text
 frontend/src/App.vue                         # 页面、筛选和统一岗位卡片
@@ -271,12 +294,18 @@ backend/.../job/JobPostingRepository.java    # PostgreSQL 查询和 upsert
 backend/.../job/JobProviderService.java      # Greenhouse 导入和 normalize
 backend/.../job/GmailLinkedInService.java   # Gmail OAuth、LinkedIn 解析
 backend/.../job/SalaryInfo.java              # 共用薪资解析器
+backend/.../job/DeepSeekAiGateway.java      # 后端 AI 网关与最小请求
+backend/.../job/SemanticAnalysisParser.java  # 严格 JSON/enum/evidence 校验
+backend/.../job/JobAnalysisService.java      # 分析缓存、失败降级与匹配编排
+backend/.../job/JobMatchEngine.java          # 固定权重确定性匹配
+backend/.../job/JobAiAnalysisRepository.java # V5 分析持久化
+backend/.../job/JobMatchResultRepository.java # V6 匹配持久化
 backend/.../job/ProviderController.java      # provider API
 backend/.../job/JobPostingController.java    # GET /api/jobs
-backend/src/main/resources/db/migration/    # Flyway 迁移
+backend/src/main/resources/db/migration/    # Flyway V1–V6 迁移
 ```
 
-## 10. 评审重点
+## 11. 评审重点
 
 后续架构或代码评审应重点关注：
 
@@ -286,4 +315,3 @@ backend/src/main/resources/db/migration/    # Flyway 迁移
 4. 原始数据保留和 30 天清理是否真正实现。
 5. Greenhouse/LinkedIn 是否继续共用统一模型和卡片。
 6. 只显示中国和新加坡的页面过滤是否与未来后端硬过滤策略保持一致。
-

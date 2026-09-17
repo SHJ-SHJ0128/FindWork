@@ -1,6 +1,18 @@
 # Job Copilot — Implementation Plan
 
-Status: Phase 3 foundation started on 2026-09-17. The local app now has a candidate profile, a persisted job-posting list, filters, score display, remote/needs-review labels, demo records, a public Greenhouse import path, and a Gmail read-only LinkedIn alert importer. Matching computation, authentication, and application-tracking code remain unimplemented.
+Status: Phase 7/8 foundation completed on 2026-09-18. The local app has candidate preferences, provider-neutral persistence, Greenhouse and Gmail/LinkedIn alert import, DeepSeek semantic extraction, cached analysis, deterministic matching, explainable reasons, score sorting, and a Vue review dashboard. BOSS/direct LinkedIn collection, authentication, and application-tracking remain intentionally unimplemented.
+
+## Current Sprint — AI Job Matching Pipeline (2026-09-18)
+
+- Provider imports persist normalized `JobPosting` records before AI work. AI runs in the backend only; page loading never performs synchronous model calls.
+- `AiGateway` is the boundary. `DeepSeekAiGateway` sends only title, company, location, and bounded description to the configured OpenAI-compatible endpoint. Keys remain in local `.env` and are never logged or persisted.
+- `SemanticAnalysisParser` accepts strict JSON (or a JSON code fence), rejects extra/unknown fields, validates enums, nullable values, array limits, and evidence presence in the original JD. Malformed, timeout, 429, and 5xx responses fail safely; 429/5xx and transport failures receive one retry.
+- `job_ai_analysis` stores description SHA-256, analysis version, model, status (`PENDING`, `ANALYZING`, `SUCCESS`, `FAILED`), structured semantic fields, evidence, and a bounded error. A successful row with the same hash/version/model is a cache hit.
+- `JobMatchEngine` owns the final score and cannot be overridden by the model. Weights are role 30, skills 25, experience 20, location 15, freshness 10. Unsupported countries and China cities outside the candidate profile are hard-filtered; unknown values remain neutral. `job_match_result` stores component scores, reasons, concerns, profile hash, and algorithm version.
+- Updating candidate preferences re-runs deterministic matching for all current successful analyses. AI failure leaves the job visible and exposes `分析失败`; no random or fabricated score is shown.
+- `GET /api/jobs` supports `page`, `size`, `sort=score|postedAt`, `minScore`, `country`, `city`, and `source`. Manual analysis is available at `/api/ai/jobs/{id}/analyze` and `/api/ai/jobs/analyze-pending?limit=`. The Vue dashboard shows analysis stats, top-five daily recommendations, match reasons/concerns, and per-job analysis actions.
+
+The implementation deliberately does not add new providers, auto-apply, login automation, CAPTCHA handling, embeddings, or a queue.
 
 ## Phase 0 — Repository and architecture baseline
 
