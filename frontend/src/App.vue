@@ -329,7 +329,7 @@ async function save() {
 
       <section class="recommendation-panel">
         <div class="recommendation-head"><div><p class="eyebrow">TODAY / SHORTLIST</p><h2>今日推荐</h2></div><button type="button" class="secondary-button" @click="analyzePending">分析待处理</button></div>
-        <div class="stats"><span><strong>{{ analyzedCount }}</strong>已分析</span><span><strong>{{ pendingCount }}</strong>待分析</span><span><strong>{{ highMatchCount }}</strong>高匹配</span></div>
+        <div class="stats"><span><strong>{{ filteredJobs.length }}</strong>总岗位</span><span><strong>{{ analyzedCount }}</strong>已分析</span><span><strong>{{ pendingCount }}</strong>待分析</span><span><strong>{{ highMatchCount }}</strong>高匹配</span></div>
         <div v-if="recommendations.length" class="recommendation-list"><button v-for="job in recommendations" :key="job.id" type="button" @click="focusJob(job.id)"><strong>{{ job.matchScore }}%</strong><span>{{ job.title }}</span><small>{{ job.company }}</small></button></div>
         <p v-else class="empty-recommendation">完成岗位分析后，这里会显示最高匹配的可审阅职位。</p>
         <p v-if="analyzeMessage" class="import-message">{{ analyzeMessage }}</p>
