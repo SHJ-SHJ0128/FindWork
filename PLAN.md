@@ -44,7 +44,7 @@ Status: Phase 2 foundation implemented on 2026-09-17. The local app now has a ca
 
 **Tests:** contract fixtures, uniqueness, UTC timestamps, partial failure simulation.
 
-**Current slice:** `V2__job_posting.sql` creates the first provider-neutral table and indexes, seeds five clearly labelled demo records, and `GET /api/jobs` exposes them to the Vue review page. The demo records are not live jobs and will be replaced by provider imports.
+**Current slice:** `V2__job_posting.sql` creates the first provider-neutral table and indexes; `V2` plus `V3__more_demo_jobs.sql` seed fifteen clearly labelled demo records. `GET /api/jobs` exposes them to the Vue review page. The demo records are not live jobs and will be replaced by provider imports.
 
 ## Phase 3 — Stable and user-controlled providers
 
