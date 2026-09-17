@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestClientException;
@@ -14,7 +13,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
-@Service
 public class DeepSeekAiGateway implements AiGateway {
     private static final String SYSTEM_PROMPT = """
             You are a job posting semantic analysis engine.

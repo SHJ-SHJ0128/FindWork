@@ -1,17 +1,13 @@
 # Job Copilot — Implementation Plan
 
-Status: Phase 7/8 foundation completed on 2026-09-18. The local app has candidate preferences, provider-neutral persistence, Greenhouse and Gmail/LinkedIn alert import, DeepSeek semantic extraction, cached analysis, deterministic matching, explainable reasons, score sorting, and a Vue review dashboard. BOSS/direct LinkedIn collection, authentication, and application-tracking remain intentionally unimplemented.
+Status: Provider and review foundation completed on 2026-09-18. The local app has candidate preferences, provider-neutral persistence, Greenhouse and Gmail/LinkedIn alert import, salary extraction, city/source/remote filters, and a Vue review dashboard. DeepSeek semantic extraction and match scoring are retired from the active product flow; BOSS/direct LinkedIn collection, authentication, and application-tracking remain intentionally unimplemented.
 
-## Current Sprint — AI Job Matching Pipeline (2026-09-18)
+## Current Sprint — Manual Review Simplification (2026-09-18)
 
-- Provider imports persist normalized `JobPosting` records before AI work. AI runs in the backend only; page loading never performs synchronous model calls.
-- `AiGateway` is the boundary. `DeepSeekAiGateway` sends only title, company, location, and bounded description to the configured OpenAI-compatible endpoint. Keys remain in local `.env` and are never logged or persisted.
-- `SemanticAnalysisParser` accepts strict JSON (or a JSON code fence), rejects extra/unknown fields, validates enums, nullable values, array limits, and evidence presence in the original JD. Malformed, timeout, 429, and 5xx responses fail safely; 429/5xx and transport failures receive one retry.
-- `job_ai_analysis` stores description SHA-256, analysis version, model, status (`PENDING`, `ANALYZING`, `SUCCESS`, `FAILED`), structured semantic fields, evidence, and a bounded error. A successful row with the same hash/version/model is a cache hit.
-- `JobMatchEngine` owns the final score and cannot be overridden by the model. Weights are role 30, skills 25, experience 20, location 15, freshness 10. Unsupported countries and China cities outside the candidate profile are hard-filtered; unknown values remain neutral. `job_match_result` stores component scores, reasons, concerns, profile hash, and algorithm version.
-- Updating candidate preferences re-runs deterministic matching for all current successful analyses. AI failure leaves the job visible and exposes `分析失败`; no random or fabricated score is shown.
-- `GET /api/jobs` supports `page`, `size`, `sort=score|postedAt`, `minScore`, `country`, `city`, and `source`. Manual analysis is available at `/api/ai/jobs/{id}/analyze` and `/api/ai/jobs/analyze-pending?limit=`. The Vue dashboard shows analysis stats, top-five daily recommendations, match reasons/concerns, and per-job analysis actions.
-- The scheduled/batch analyzer processes imported provider records only; `DEMO` fixtures keep their deterministic demo scores and do not consume the AI quota.
+- Provider imports persist normalized `JobPosting` records for direct human review; page loading performs no AI calls.
+- `GET /api/jobs` supports `page`, `size`, `sort=score|postedAt`, `minScore`, `country`, `city`, and `source`. City matching normalizes whitespace/case and a trailing `市` on both API and UI paths.
+- The Vue dashboard shows source/date, title, company/location, salary, summary, skills, workplace/review labels, and the original job link. Match scores, recommendations, evidence, and analysis actions are removed.
+- DeepSeek and match scoring are not registered in the running Spring context; no scheduled or manual AI analysis route is exposed. V5/V6 tables and legacy classes remain only for compatibility with existing local data.
 
 The implementation deliberately does not add new providers, auto-apply, login automation, CAPTCHA handling, embeddings, or a queue.
 
@@ -117,7 +113,7 @@ The implementation deliberately does not add new providers, auto-apply, login au
 
 ## Phase 7 — DeepSeek extraction and explanations
 
-**Objective:** add useful AI without surrendering correctness or privacy.
+**Objective:** (retired) add useful AI without surrendering correctness or privacy.
 
 **Tasks:** DeepSeek gateway; redaction; schema-validated extraction; evidence-grounded explanation; content-hash cache; unavailable/timeout fallback.
 
@@ -131,15 +127,15 @@ The implementation deliberately does not add new providers, auto-apply, login au
 
 ## Phase 8 — Vue dashboard
 
-**Objective:** let the user review quantity and quality efficiently.
+**Objective:** let the user review quantity and quality efficiently without match-score UI.
 
-**Tasks:** job list/detail; score/evidence/concern panels; source and city/remote filters; collection status; profile/resume settings; needs-review labels.
+**Tasks:** job list/detail; source and city/remote filters; salary/summary display; profile/resume settings; needs-review labels.
 
 **Expected modules:** `frontend` views/components and API client.
 
 **Dependencies:** Phase 1–7.
 
-**Acceptance:** the user can inspect every retained job, open the original URL, and understand why it ranked; no application-tracking UI is included.
+**Acceptance:** the user can inspect every retained job and open the original URL; no application-tracking or match-score UI is included.
 
 **Tests:** component tests, accessibility checks, API contract tests, one end-to-end review flow.
 

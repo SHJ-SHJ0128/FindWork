@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.findwork.candidate.CandidateProfile;
 import com.findwork.candidate.CandidateProfileRepository;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
@@ -21,7 +19,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 
-@Service
 public class JobAnalysisService {
     private final JobPostingRepository jobs;
     private final JobAiAnalysisRepository analyses;
@@ -86,12 +83,6 @@ public class JobAnalysisService {
             running.set(false);
         }
         return new AnalysisRunResult(scanned, succeeded, failed, Math.max(0, limit - scanned));
-    }
-
-    @Scheduled(initialDelayString = "${findwork.ai.pending-initial-delay-ms:300000}",
-            fixedDelayString = "${findwork.ai.pending-delay-ms:300000}")
-    public void scheduledAnalyzePending() {
-        if (ai.configured()) analyzePending(maxPending);
     }
 
     public ObjectNode view(JobPosting job) {

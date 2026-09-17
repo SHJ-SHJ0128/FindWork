@@ -29,21 +29,6 @@ h1 { margin: 0; font-size: clamp(36px, 5vw, 56px); letter-spacing: -.06em; line-
 .result-summary { min-width: 136px; padding: 13px 15px; border-left: 2px solid #17202a; }
 .result-summary strong { display: block; font-size: 32px; letter-spacing: -.06em; line-height: 1; }
 .result-summary span { color: #66717c; font-size: 12px; }
-.recommendation-panel { margin-top: 22px; padding: 18px 20px; border: 1px solid #d8d5ce; border-radius: 10px; background: #eceae5; }
-.recommendation-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.recommendation-head .eyebrow { margin-bottom: 7px; }
-.recommendation-head h2 { margin: 0; font-size: 22px; }
-.secondary-button { border: 1px solid #cbc8c1; border-radius: 8px; padding: 9px 12px; color: #17202a; background: #fff; }
-.stats { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 15px; color: #69737d; font-size: 12px; }
-.stats strong { margin-right: 4px; color: #17202a; font-size: 20px; }
-.recommendation-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 15px; }
-.recommendation-list button { display: grid; gap: 3px; min-width: 0; padding: 10px; border: 1px solid #dedbd5; border-radius: 8px; color: #17202a; background: #fff; text-align: left; cursor: pointer; }
-.recommendation-list button:hover { border-color: #a9a59c; }
-.recommendation-list strong { font-size: 18px; }
-.recommendation-list span, .recommendation-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.recommendation-list span { font-size: 12px; font-weight: 700; }
-.recommendation-list small { color: #69737d; font-size: 11px; }
-.empty-recommendation { margin: 15px 0 0; color: #69737d; font-size: 12px; }
 .import-panel { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(280px, 1.2fr); gap: 22px; align-items: end; margin-top: 30px; padding: 18px 20px; border: 1px solid #d8d5ce; border-radius: 10px; background: #eceae5; }
 .import-panel h2 { margin: 0 0 5px; font-size: 16px; }
 .import-panel p { margin: 0; color: #69737d; font-size: 12px; line-height: 1.5; }
@@ -67,15 +52,8 @@ input:focus, select:focus { border-color: #17202a; box-shadow: 0 0 0 2px #d8d5ce
 h2 { margin: 9px 0 5px; font-size: 21px; letter-spacing: -.035em; }
 .company { margin: 0; color: #56616b; font-size: 13px; }
 .company span { color: #afb1b0; padding: 0 5px; }
-.score { min-width: 65px; text-align: right; }
-.score strong { display: block; color: #17202a; font-size: 30px; letter-spacing: -.08em; line-height: 1; }
-.score span { color: #8a9095; font-size: 10px; }
 .salary { margin: 15px 0 -5px; color: #17202a; font-size: 15px; font-weight: 750; letter-spacing: -.02em; }
 .description { max-width: 700px; margin: 18px 0 15px; color: #4f5962; font-size: 13px; line-height: 1.6; }
-.evidence { max-width: 700px; margin: -7px 0 13px; color: #69737d; font-size: 11px; line-height: 1.5; }
-.match-notes { display: grid; gap: 4px; margin: 0 0 13px; font-size: 11px; }
-.positive-reason { color: #315b48; }
-.concern-reason { color: #8d5d27; }
 .tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .tag { padding: 5px 8px; border-radius: 5px; color: #56616b; background: #f0efeb; font-size: 11px; }
 .location-tag { color: #315b48; background: #e7f0ea; }
@@ -83,9 +61,6 @@ h2 { margin: 9px 0 5px; font-size: 21px; letter-spacing: -.035em; }
 .job-footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 13px; border-top: 1px solid #eeece8; color: #8a9095; font-size: 11px; }
 .job-footer a { color: #17202a; font-weight: 700; text-decoration: none; }
 .job-footer a:hover { text-decoration: underline; }
-.analyze-button { padding: 0; border: 0; color: #315b48; background: transparent; font-size: 11px; cursor: pointer; }
-.analyze-button:disabled { opacity: .55; cursor: wait; }
-.ai-tag { color: #405d78; background: #e6edf3; }
 .missing-link { color: #8a9095; }
 .demo-note { margin: 20px 0 0; color: #8a9095; font-size: 11px; }
 .state-panel { padding: 42px 20px; border: 1px dashed #c6c2ba; border-radius: 12px; color: #69737d; text-align: center; }
@@ -118,11 +93,8 @@ h2 { margin: 9px 0 5px; font-size: 21px; letter-spacing: -.035em; }
   .import-panel { grid-template-columns: 1fr; gap: 14px; }
   .import-form { align-items: stretch; flex-direction: column; }
   .import-message { grid-column: auto; }
-  .recommendation-list { grid-template-columns: 1fr 1fr; }
-  .recommendation-list button:last-child { display: none; }
   .job-card { padding: 18px; }
   .job-card-top { gap: 12px; }
   h2 { font-size: 18px; }
-  .score strong { font-size: 25px; }
   .job-footer { align-items: flex-start; flex-direction: column; }
 }

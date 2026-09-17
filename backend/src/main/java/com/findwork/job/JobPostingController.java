@@ -1,6 +1,5 @@
 package com.findwork.job;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,15 +15,13 @@ import java.util.stream.Stream;
 @CrossOrigin(origins = "http://127.0.0.1:5173")
 public class JobPostingController {
     private final JobPostingRepository repository;
-    private final JobAnalysisService analysis;
 
-    public JobPostingController(JobPostingRepository repository, JobAnalysisService analysis) {
+    public JobPostingController(JobPostingRepository repository) {
         this.repository = repository;
-        this.analysis = analysis;
     }
 
     @GetMapping
-    public List<ObjectNode> list(@RequestParam(defaultValue = "0") int page,
+    public List<JobPosting> list(@RequestParam(defaultValue = "0") int page,
                                  @RequestParam(defaultValue = "100") int size,
                                  @RequestParam(defaultValue = "score") String sort,
                                  @RequestParam(required = false) Integer minScore,
@@ -46,7 +43,6 @@ public class JobPostingController {
         return stream.sorted(comparator)
                 .skip((long) page * size)
                 .limit(size)
-                .map(analysis::view)
                 .toList();
     }
 

@@ -6,13 +6,13 @@
 
 ## 1. 项目目标
 
-FindWork 是一个本地运行的个人求职岗位收集与审阅工具，目标是：
+FindWork 是一个本地运行的个人求职岗位收集与人工审阅工具，目标是：
 
 - 收集中国和新加坡的软件工程相关岗位。
 - 保留较高召回率，让用户先审阅数量，再判断质量。
 - 将不同来源的职位转换为统一数据结构。
 - 保存原始职位链接，方便人工打开和申请。
-- 对不确定字段进行标记，不伪造匹配分数或职位信息。
+- 对不确定字段进行标记，不伪造职位信息；当前不生成匹配度分数。
 
 当前候选人方向包括 Backend、AI Application、Solutions Engineering 及相关软件工程岗位；允许城市为重庆、成都、广州、深圳、杭州；新加坡保留为支持地区；远程岗位单独标记。
 
@@ -157,7 +157,6 @@ Greenhouse 和 LinkedIn 共用 `SalaryInfo` 解析逻辑：
 - 技能标签。
 - 远程/混合/现场办公标签（办公方式不明时不显示假标签）。
 - `需审核` 标签。
-- 零匹配分显示为“待匹配”，不伪造分数。
 - 原始职位链接在新标签页打开。
 
 列表当前只显示 `country=China` 或 `country=Singapore` 的岗位；其他国家和国家不明的记录仍保留在数据库中，但不展示在页面。
@@ -170,26 +169,14 @@ Greenhouse 和 LinkedIn 共用 `SalaryInfo` 解析逻辑：
 - 只看远程。
 - 岗位数量和当前可审阅数量。
 
-### 2.8 AI 语义分析与确定性匹配
+### 2.8 匹配度分析状态
 
-本轮已完成从岗位导入到推荐排序的后端闭环：
+匹配度分析和 DeepSeek 自动分析已从当前产品流程移除：
 
-1. Provider 先将岗位写入 `job_posting`，AI 失败不会丢弃岗位。
-2. `DeepSeekAiGateway` 仅在后端调用配置的 OpenAI 兼容接口，发送标题、公司、地点和截断后的 JD；Key 不进入代码、前端、数据库或日志。
-3. `SemanticAnalysisParser` 只接受严格 JSON/JSON code fence，拒绝额外文本和未知字段，校验枚举、数组、经验年限、nullable 字段，并要求 evidence 文本出现在原始 JD。
-4. `job_ai_analysis`（Flyway V5）保存描述 SHA-256、分析版本、模型、状态、结构化技能/经验/办公方式/薪资/evidence。相同 JD + 版本 + 模型的成功结果直接命中缓存。
-5. `JobMatchEngine` 在 Java 中按 30/25/20/15/10 五项固定权重计算 0–100 分；模型不能覆盖结果。国家不在 China/Singapore 或中国城市不在候选人允许列表时硬过滤，未知信息保持中性。
-6. `job_match_result`（Flyway V6）保存组件分、匹配技能、缺失技能、正向理由、风险、硬过滤原因、候选人资料 hash 和算法版本。资料更新后会重新计算已有成功分析。
-7. 前端“今日推荐”展示前 5 个已分析且通过硬过滤的岗位；卡片显示匹配理由/顾虑。未分析显示待分析，失败显示分析失败，不显示伪造分数。
-
-后台定时/批量分析只处理真实 provider 岗位，Demo fixture 保留固定演示分数，不消耗 AI 配额；首次后台运行延迟 5 分钟。
-
-手动接口：
-
-```text
-POST /api/ai/jobs/{id}/analyze
-POST /api/ai/jobs/analyze-pending?limit=3
-```
+1. `GET /api/jobs` 直接返回统一 `JobPosting`，不附加 AI 分析状态或匹配结果。
+2. 岗位列表不调用 AI，不显示匹配分、推荐分、证据或匹配理由。
+3. 保存候选人资料不会触发重新匹配，后端也没有后台 AI 分析任务。
+4. Flyway V5/V6 表、旧分析类和测试暂时保留，作为已有本地数据的兼容遗留；当前运行流程不读写这些结果。
 
 ## 3. 当前 API
 
@@ -201,8 +188,6 @@ POST /api/providers/greenhouse/import
 GET  /api/providers/gmail/authorize
 GET  /api/providers/gmail/callback
 POST /api/providers/gmail/linkedin/import
-POST /api/ai/jobs/{id}/analyze
-POST /api/ai/jobs/analyze-pending?limit=3
 ```
 
 ## 4. 当前数据与验证结果
@@ -214,11 +199,10 @@ POST /api/ai/jobs/analyze-pending?limit=3
 - 其他国家/国家不明记录被页面地区过滤隐藏。
 - Greenhouse Airtable 幂等导入成功，导入 16 条。
 - Greenhouse 完整 JD 仍保存，但卡片只显示摘要。
+- 页面不调用 AI，不显示匹配度、推荐分、证据或匹配理由。
 - `mvn test -q` 通过。
 - `npm run build` 通过。
 - `git diff --check` 通过。
-- `mvn test -q` 通过，包含语义 JSON/evidence 校验和匹配引擎硬过滤测试。
-- `npm run build` 通过。
 
 ## 5. DeepSeek / 硅基流动配置状态
 
@@ -230,13 +214,10 @@ DEEPSEEK_MODEL=deepseek-ai/DeepSeek-V3.2
 DEEPSEEK_API_KEY=<local secret, omitted>
 ```
 
-已完成一次最小 SiliconFlow Chat Completions 连通性测试，返回 HTTP 200。
-
-当前 `DeepSeekAiGateway` 已实现；后台分析器首次启动延迟 5 分钟，之后每 5 分钟最多处理 3 条真实 provider 岗位，也可通过手动接口逐条或按上限分析。已实现超时、一次有限重试、严格 JSON/evidence 校验、哈希缓存和失败降级。未执行本轮全量真实岗位分析，以避免未经确认的 API 用量。
+此前已完成一次最小 SiliconFlow Chat Completions 连通性测试，返回 HTTP 200；当前产品已停用该调用链，不再向外部 AI 发送岗位内容。历史 `DeepSeekAiGateway`、分析类和 V5/V6 表暂时保留用于本地数据兼容，`DEEPSEEK_ENABLED` 默认值为 `false`。
 
 ## 6. 明确未完成内容
 
-- DeepSeek 分析的批量运营监控、失败重试队列和历史版本清理。
 - 更高效的数据库分页/筛选（当前 API 在内存中完成筛选后分页）。
 - BOSS 直连采集。
 - LinkedIn 直接网页采集。
@@ -259,10 +240,9 @@ DEEPSEEK_API_KEY=<local secret, omitted>
 
 ## 8. 下一步建议
 
-1. 在本地确认候选人资料后，用“分析待处理”小批量验证真实岗位结果。
-2. 增加 provider 级限流、运行记录和失败重试队列。
-3. 为更多稳定 ATS 增加适配器，并复用同一 UnifiedJob/AI/Match 流程。
-4. 对人工审阅结果建立离线标注集，校准权重但不让模型直接改分。
+1. 增加 provider 级限流、运行记录和失败重试队列。
+2. 为更多稳定 ATS 增加适配器，并复用同一 UnifiedJob 流程。
+3. 对人工审阅结果建立离线标注集，后续如需恢复评分再单独评估。
 
 ## 9. 本地启动
 
@@ -296,12 +276,12 @@ backend/.../job/JobPostingRepository.java    # PostgreSQL 查询和 upsert
 backend/.../job/JobProviderService.java      # Greenhouse 导入和 normalize
 backend/.../job/GmailLinkedInService.java   # Gmail OAuth、LinkedIn 解析
 backend/.../job/SalaryInfo.java              # 共用薪资解析器
-backend/.../job/DeepSeekAiGateway.java      # 后端 AI 网关与最小请求
-backend/.../job/SemanticAnalysisParser.java  # 严格 JSON/enum/evidence 校验
-backend/.../job/JobAnalysisService.java      # 分析缓存、失败降级与匹配编排
-backend/.../job/JobMatchEngine.java          # 固定权重确定性匹配
-backend/.../job/JobAiAnalysisRepository.java # V5 分析持久化
-backend/.../job/JobMatchResultRepository.java # V6 匹配持久化
+backend/.../job/DeepSeekAiGateway.java      # 已停用的历史 AI 网关
+backend/.../job/SemanticAnalysisParser.java  # 已停用的历史解析器
+backend/.../job/JobAnalysisService.java      # 已停用的历史分析编排
+backend/.../job/JobMatchEngine.java          # 已停用的历史匹配逻辑
+backend/.../job/JobAiAnalysisRepository.java # V5 历史数据兼容
+backend/.../job/JobMatchResultRepository.java # V6 历史数据兼容
 backend/.../job/ProviderController.java      # provider API
 backend/.../job/JobPostingController.java    # GET /api/jobs
 backend/src/main/resources/db/migration/    # Flyway V1–V6 迁移
@@ -311,9 +291,7 @@ backend/src/main/resources/db/migration/    # Flyway V1–V6 迁移
 
 后续架构或代码评审应重点关注：
 
-1. DeepSeek 接入是否严格执行脱敏和证据约束。
-2. 匹配算法是否保持确定性、可解释且不被 LLM 覆盖。
-3. provider 失败是否只影响单个来源。
-4. 原始数据保留和 30 天清理是否真正实现。
-5. Greenhouse/LinkedIn 是否继续共用统一模型和卡片。
-6. 只显示中国和新加坡的页面过滤是否与未来后端硬过滤策略保持一致。
+1. provider 失败是否只影响单个来源。
+2. 原始数据保留和 30 天清理是否真正实现。
+3. Greenhouse/LinkedIn 是否继续共用统一模型和卡片。
+4. 只显示中国和新加坡的页面过滤是否与未来后端硬过滤策略保持一致。

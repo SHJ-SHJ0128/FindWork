@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.PathVariable;
 
 import java.net.URI;
 
@@ -21,14 +20,11 @@ import java.net.URI;
 public class ProviderController {
     private final JobProviderService service;
     private final GmailLinkedInService gmail;
-    private final JobAnalysisService analysis;
 
-    public ProviderController(JobProviderService service, GmailLinkedInService gmail, JobAnalysisService analysis) {
+    public ProviderController(JobProviderService service, GmailLinkedInService gmail) {
         this.service = service;
         this.gmail = gmail;
-        this.analysis = analysis;
-    }
-
+}
     @PostMapping("/greenhouse/import")
     public ProviderImportResult importGreenhouse(@Valid @RequestBody ProviderImportRequest request) {
         return service.importGreenhouse(request.board());
@@ -70,13 +66,4 @@ public class ProviderController {
         return gmail.importLinkedInAlerts();
     }
 
-    @PostMapping("/ai/jobs/{id}/analyze")
-    public Object analyzeJob(@PathVariable java.util.UUID id) {
-        return analysis.analyze(id);
-    }
-
-    @PostMapping("/ai/jobs/analyze-pending")
-    public JobAnalysisService.AnalysisRunResult analyzePending(@RequestParam(defaultValue = "3") int limit) {
-        return analysis.analyzePending(limit);
-    }
 }

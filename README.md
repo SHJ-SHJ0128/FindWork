@@ -1,6 +1,6 @@
 # FindWork
 
-FindWork 是本地运行的求职岗位收集、AI 语义整理与确定性匹配工具。岗位由来源适配器统一保存，DeepSeek 只负责结构化理解，最终匹配分由后端规则引擎计算。
+FindWork 是本地运行的求职岗位收集与人工审阅工具。岗位由来源适配器统一保存，用户通过筛选、摘要、薪资和原始链接自行判断，不自动生成匹配度分数。
 
 ## 本地打开方式
 
@@ -39,20 +39,9 @@ LinkedIn 不提供面向普通求职者的公开岗位搜索 API，因此 FindWo
 
 后端每天 08:00（`GMAIL_TIME_ZONE`）同步一次，但应用关闭时不会后台运行。导入时会按每个职位链接拆分邮件条目，整理标题、公司、国家、城市、办公方式、经验层级、技能标签和可识别薪资；无法从邮件确认的字段会保留“待确认”。岗位使用现有 `canonical_url` 保存 LinkedIn 原始职位链接，并标记为“需审核”；不会自动申请。BOSS 保持独立的后续 provider，不会通过 Gmail 伪装接入。
 
-## AI 语义分析与匹配
+## 匹配度分析状态
 
-后端 `DeepSeekAiGateway` 使用 OpenAI 兼容 Chat Completions 接口，读取根目录 `.env` 中的 `DEEPSEEK_BASE_URL`、`DEEPSEEK_MODEL` 和 `DEEPSEEK_API_KEY`。只发送岗位标题、公司、地点和截断后的职位描述；API Key 不写入前端、数据库或日志。响应必须是 JSON，枚举、数组、经验年限和 evidence 均会校验；evidence 文本必须出现在原始 JD 中。
-
-每个岗位的分析缓存写入 `job_ai_analysis`（描述 SHA-256、分析版本、模型、状态和结构化字段），仅在 JD、版本或模型变化时重新分析。匹配结果写入 `job_match_result`，由 Java `JobMatchEngine` 按固定 100 分计算：职位方向 30、技能 25、经验 20、地点 15、时效 10。中国不在允许城市、国家不在 China/Singapore 目标地区的岗位会被硬过滤；未知信息保持中性，不伪造分数。AI 失败只标记该岗位分析失败，岗位仍保留。
-
-手动接口：
-
-```text
-POST /api/ai/jobs/{id}/analyze
-POST /api/ai/jobs/analyze-pending?limit=3
-```
-
-页面“今日推荐”显示已完成分析且通过硬过滤的前 5 个岗位；真实岗位在分析成功前显示“待分析”，失败显示“分析失败”。后台分析器首次启动延迟 5 分钟，之后每 5 分钟最多处理 3 条真实 provider 岗位，也可使用上述接口手动触发。
+匹配度分析和 DeepSeek 自动分析已从当前产品流程移除。岗位列表不会调用 AI、不会显示匹配分/推荐分，也不会在保存候选人资料时重新计算匹配。历史数据库中的 `job_ai_analysis`、`job_match_result` 表和旧测试代码暂时保留，便于兼容已有数据，但当前后端不会读取或写入这些结果；`DEEPSEEK_ENABLED` 默认值已改为 `false`。
 
 ## 启动后端（需要 PostgreSQL）
 

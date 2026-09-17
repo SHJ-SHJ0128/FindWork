@@ -30,23 +30,8 @@ type JobPosting = {
   salaryPeriod?: string | null;
   salaryText?: string | null;
   salarySource?: string | null;
-  score: number;
   needsReview: boolean;
   postedAt: string | null;
-  analysisStatus?: "PENDING" | "ANALYZING" | "SUCCESS" | "FAILED";
-  analysisError?: string | null;
-  analysis?: { evidence?: Record<string, unknown> } | null;
-  matchScore?: number | null;
-  match?: JobMatchResult | null;
-};
-
-type JobMatchResult = {
-  totalScore: number;
-  matchedSkills: string[];
-  missingRequiredSkills: string[];
-  positiveReasons: string[];
-  concerns: string[];
-  hardFilterPassed: boolean;
 };
 
 const profileApi = "http://127.0.0.1:8080/api/candidate-profile";
@@ -61,8 +46,6 @@ const message = ref("");
 const greenhouseBoard = ref("");
 const importing = ref(false);
 const importMessage = ref("");
-const analyzingJobId = ref("");
-const analyzeMessage = ref("");
 const filters = reactive({ search: "", city: "全部城市", source: "全部来源", remoteOnly: false });
 
 const profile = reactive<CandidateProfile>({
@@ -98,14 +81,6 @@ const filteredJobs = computed(() => jobs.value.filter((job) => {
   const matchesRemote = !filters.remoteOnly || job.remoteType === "REMOTE";
   return matchesRegion && matchesSearch && matchesCity && matchesSource && matchesRemote;
 }));
-const analyzedCount = computed(() => filteredJobs.value.filter((job) => job.analysisStatus === "SUCCESS").length);
-const pendingCount = computed(() => filteredJobs.value.filter((job) => !job.analysisStatus || job.analysisStatus === "PENDING").length);
-const highMatchCount = computed(() => filteredJobs.value.filter((job) => (job.matchScore ?? -1) >= 80 && job.match?.hardFilterPassed !== false).length);
-const recommendations = computed(() => [...filteredJobs.value]
-  .filter((job) => job.matchScore != null && job.match?.hardFilterPassed !== false)
-  .sort((a, b) => (b.matchScore ?? -1) - (a.matchScore ?? -1))
-  .slice(0, 5));
-
 function split(value: string) {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
 }
@@ -146,32 +121,8 @@ function jobSummary(job: JobPosting) {
   return job.summary?.trim() || "职位提醒已整理，完整职责请打开原始职位。";
 }
 
-function evidenceText(job: JobPosting) {
-  const values = Object.values(job.analysis?.evidence ?? {}).flatMap((value) => Array.isArray(value) ? value : [value]);
-  return values.filter((value): value is string => typeof value === "string" && value.trim().length > 0).slice(0, 2).join(" · ");
-}
-
-function focusJob(id: string) {
-  document.getElementById(`job-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-}
-
 function sourceLabel(source: string) {
   return { LINKEDIN: "LinkedIn", GREENHOUSE: "Greenhouse", DEMO: "Demo" }[source] ?? source;
-}
-
-function scoreLabel(job: JobPosting) {
-  if (job.source === "DEMO") return String(job.score);
-  return job.analysisStatus === "SUCCESS" && job.matchScore != null ? String(job.matchScore) : "—";
-}
-
-function scoreCaption(job: JobPosting) {
-  if (job.source === "DEMO") return "匹配分";
-  return { SUCCESS: "匹配度", FAILED: "分析失败", ANALYZING: "AI分析中", PENDING: "待分析" }[job.analysisStatus ?? "PENDING"];
-}
-
-function analysisStatusLabel(job: JobPosting) {
-  if (job.source === "DEMO") return "演示";
-  return { SUCCESS: "已分析", FAILED: "分析失败", ANALYZING: "AI分析中", PENDING: "待分析" }[job.analysisStatus ?? "PENDING"];
 }
 
 async function loadJobs() {
@@ -213,38 +164,6 @@ async function importGreenhouse() {
     importMessage.value = "导入失败，请检查岗位板 slug/URL 和后端网络连接";
   } finally {
     importing.value = false;
-  }
-}
-
-async function analyzeJob(job: JobPosting) {
-  analyzingJobId.value = job.id;
-  analyzeMessage.value = "正在分析…";
-  try {
-    const response = await fetch(`http://127.0.0.1:8080/api/ai/jobs/${job.id}/analyze`, { method: "POST" });
-    if (!response.ok) throw new Error();
-    const updated = await response.json() as JobPosting;
-    const index = jobs.value.findIndex((item) => item.id === job.id);
-    if (index >= 0) jobs.value[index] = updated;
-    analyzeMessage.value = updated.analysisStatus === "SUCCESS"
-      ? "分析完成"
-      : `分析失败${updated.analysisError ? `：${updated.analysisError}` : ""}`;
-  } catch {
-    analyzeMessage.value = "分析失败，请检查 DeepSeek 配置";
-  } finally {
-    analyzingJobId.value = "";
-  }
-}
-
-async function analyzePending() {
-  analyzeMessage.value = "正在分析待处理岗位…";
-  try {
-    const response = await fetch("http://127.0.0.1:8080/api/ai/jobs/analyze-pending?limit=3", { method: "POST" });
-    if (!response.ok) throw new Error();
-    const result = await response.json() as { succeeded: number; failed: number };
-    analyzeMessage.value = `本次完成 ${result.succeeded} 条${result.failed ? `，失败 ${result.failed} 条` : ""}`;
-    await loadJobs();
-  } catch {
-    analyzeMessage.value = "批量分析失败，请检查 DeepSeek 配置";
   }
 }
 
@@ -303,18 +222,10 @@ async function save() {
         <div>
           <p class="eyebrow">JOB INBOX / RECALL FIRST</p>
           <h1>值得先看的岗位</h1>
-          <p class="lede">按你的方向和地点偏好排列，远程与待确认职位会单独标记。</p>
+        <p class="lede">按你的方向和地点偏好排列，远程与待确认职位会单独标记。</p>
           </div>
         <div class="result-summary"><strong>{{ filteredJobs.length }}</strong><span>当前可审阅</span></div>
       </div>
-
-      <section class="recommendation-panel">
-        <div class="recommendation-head"><div><p class="eyebrow">TODAY / SHORTLIST</p><h2>今日推荐</h2></div><button type="button" class="secondary-button" @click="analyzePending">分析待处理</button></div>
-        <div class="stats"><span><strong>{{ filteredJobs.length }}</strong>总岗位</span><span><strong>{{ analyzedCount }}</strong>已分析</span><span><strong>{{ pendingCount }}</strong>待分析</span><span><strong>{{ highMatchCount }}</strong>高匹配</span></div>
-        <div v-if="recommendations.length" class="recommendation-list"><button v-for="job in recommendations" :key="job.id" type="button" @click="focusJob(job.id)"><strong>{{ job.matchScore }}%</strong><span>{{ job.title }}</span><small>{{ job.company }}</small></button></div>
-        <p v-else class="empty-recommendation">完成岗位分析后，这里会显示最高匹配的可审阅职位。</p>
-        <p v-if="analyzeMessage" class="import-message">{{ analyzeMessage }}</p>
-      </section>
 
       <section class="import-panel">
         <div>
@@ -350,24 +261,16 @@ async function save() {
               <h2>{{ job.title }}</h2>
               <p class="company">{{ job.company }} <span>·</span> {{ cityLabel(job) }}</p>
             </div>
-            <div class="score"><strong>{{ scoreLabel(job) }}</strong><span>{{ scoreCaption(job) }}</span></div>
           </div>
           <p v-if="formatSalary(job)" class="salary">{{ formatSalary(job) }}</p>
           <p class="description">{{ jobSummary(job) }}</p>
-          <p v-if="evidenceText(job)" class="evidence">证据：{{ evidenceText(job) }}</p>
-          <div v-if="job.match?.positiveReasons?.length || job.match?.concerns?.length" class="match-notes">
-            <span v-for="reason in job.match?.positiveReasons ?? []" :key="reason" class="positive-reason">✓ {{ reason }}</span>
-            <span v-for="concern in job.match?.concerns ?? []" :key="concern" class="concern-reason">△ {{ concern }}</span>
-          </div>
           <div class="tags">
             <span v-for="skill in job.skills" :key="skill" class="tag">{{ skill }}</span>
             <span v-if="remoteLabel(job.remoteType)" class="tag location-tag">{{ remoteLabel(job.remoteType) }}</span>
             <span v-if="job.needsReview" class="tag review-tag">需审核</span>
-            <span v-if="job.source !== 'DEMO'" class="tag ai-tag">{{ analysisStatusLabel(job) }}</span>
           </div>
           <footer class="job-footer">
             <span>{{ job.employmentType }} · {{ job.experienceLevel }}</span>
-            <button v-if="job.source !== 'DEMO' && job.analysisStatus !== 'SUCCESS'" type="button" class="analyze-button" :disabled="analyzingJobId === job.id" @click="analyzeJob(job)">{{ analyzingJobId === job.id ? "分析中…" : "分析职位" }}</button>
             <a v-if="job.canonicalUrl" :href="job.canonicalUrl" target="_blank" rel="noopener noreferrer">查看原始职位 ↗</a>
             <span v-else class="missing-link">暂无原始职位链接</span>
           </footer>
@@ -380,7 +283,7 @@ async function save() {
       <header>
         <p class="eyebrow">FINDWORK / PROFILE</p>
         <h1>候选人资料</h1>
-        <p class="lede">先把你的目标、地点和技能变成可编辑的匹配输入。</p>
+        <p class="lede">先把你的目标、地点和技能变成可编辑的筛选输入。</p>
       </header>
       <section v-if="profileLoading" class="panel">正在读取本地资料…</section>
       <form v-else class="panel" @submit.prevent="save">
