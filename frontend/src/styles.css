@@ -55,6 +55,7 @@ h2 { margin: 9px 0 5px; font-size: 21px; letter-spacing: -.035em; }
 .job-footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; padding-top: 13px; border-top: 1px solid #eeece8; color: #8a9095; font-size: 11px; }
 .job-footer a { color: #17202a; font-weight: 700; text-decoration: none; }
 .job-footer a:hover { text-decoration: underline; }
+.demo-link { color: #8a9095; }
 .demo-note { margin: 20px 0 0; color: #8a9095; font-size: 11px; }
 .state-panel { padding: 42px 20px; border: 1px dashed #c6c2ba; border-radius: 12px; color: #69737d; text-align: center; }
 .error-state { color: #8c4b43; border-color: #d2a8a2; }

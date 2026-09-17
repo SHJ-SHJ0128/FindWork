@@ -186,7 +186,8 @@ async function save() {
           </div>
           <footer class="job-footer">
             <span>{{ job.employmentType }} · {{ job.experienceLevel }}</span>
-            <a v-if="job.canonicalUrl" :href="job.canonicalUrl" target="_blank" rel="noreferrer">查看来源 ↗</a>
+            <a v-if="job.canonicalUrl && job.source !== 'DEMO'" :href="job.canonicalUrl" target="_blank" rel="noreferrer">查看来源 ↗</a>
+            <span v-else class="demo-link">演示记录</span>
           </footer>
         </article>
       </div>
